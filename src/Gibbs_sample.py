@@ -1,3 +1,4 @@
+import math
 from scipy.stats import truncnorm, multivariate_normal
 import numpy as np
 import numpy.linalg as lg
@@ -82,4 +83,12 @@ plt.plot(gen, S_1, "g")
 plt.plot(gen, S_2, "r")
 plt.plot(gen, T, "b")
 
+plt.show()
+
+bins = int(math.sqrt(N_samples))
+
+plt.hist(S_1, bins=bins,  color= "r")
+plt.hist(S_2, bins=bins, color=  "g")
+plt.hist(T,bins=bins, color= "b")
+plt.legend(["S_1", "S_2", "T"])
 plt.show()
