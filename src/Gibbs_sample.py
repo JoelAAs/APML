@@ -1,3 +1,4 @@
+import math
 from scipy.stats import truncnorm, multivariate_normal
 import numpy as np
 import numpy.linalg as lg
@@ -60,26 +61,32 @@ def _sample(s_1, s_2, t, y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, N_samples, S_
         return _sample(
             s_1n, s_2n, tn, y,
             mu_1, mu_2, sigma_1, sigma_2,
-            sigma_t, N_samples, S_1, S_2, T, k+1)
+            sigma_t, N_samples, S_1, S_2, T, k + 1)
 
 
 ### RUN
-s_10 = 1
-s_20 = 1
-t_0 = 0
+s_10 = 5
+s_20 = 5
+t_0 = 1
 y = 1
 mu_1 = 15
 mu_2 = 15
-sigma_1 = 2
-sigma_2 = 2
-sigma_t = 2
+sigma_1 = 1
+sigma_2 = 1
+sigma_t = 1
 N_samples = 1000
 
 S_1, S_2, T = sample(s_10, s_20, t_0, y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, N_samples)
 
-gen = np.linspace(0, N_samples-1, N_samples)
+gen = np.linspace(0, N_samples - 1, N_samples)
 plt.plot(gen, S_1, "g")
 plt.plot(gen, S_2, "r")
 plt.plot(gen, T, "b")
 
+plt.show()
+
+plt.hist(S_1[25:], bins=int(math.sqrt(N_samples)), color="r")
+plt.hist(S_2[25:], bins=int(math.sqrt(N_samples)), color="g")
+plt.hist(T[25:], bins=int(math.sqrt(N_samples)), color="b")
+plt.legend(["S1", "S2", "T"])
 plt.show()
