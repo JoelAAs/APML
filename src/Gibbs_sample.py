@@ -85,8 +85,17 @@ plt.plot(gen, T, "b")
 
 plt.show()
 
+<<<<<<< HEAD
 plt.hist(S_1[25:], bins=int(math.sqrt(N_samples)), color="r")
 plt.hist(S_2[25:], bins=int(math.sqrt(N_samples)), color="g")
 plt.hist(T[25:], bins=int(math.sqrt(N_samples)), color="b")
 plt.legend(["S1", "S2", "T"])
+=======
+bins = int(math.sqrt(N_samples))
+
+plt.hist(S_1, bins=bins,  color= "r")
+plt.hist(S_2, bins=bins, color=  "g")
+plt.hist(T,bins=bins, color= "b")
+plt.legend(["S_1", "S_2", "T"])
+>>>>>>> 08bfeb6a91ee213f44f7b0d90fff0246387071c0
 plt.show()
