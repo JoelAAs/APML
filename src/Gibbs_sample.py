@@ -28,8 +28,8 @@ def Pt_s1s2y(s1, s2, y, sigma_t):
     )[0]
     return t_new
 
-# P(s1|s2,t,y)
-def Ps1_s2ty(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t):
+# P(s1,s2|t)
+def Ps1s2_t(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t):
     cov_s = np.matrix([[sigma_1, 0], [0, sigma_2]])
     A = np.matrix([1, -1])
     cov_s1s2_t = lg.inv(lg.inv(cov_s) + 1 / sigma_t * A.T.dot(A))
@@ -47,164 +47,152 @@ def Ps1_s2ty(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t):
 
 
 # Sample from the posterior P(s1,s2|t,y)
-def sample(s_10, s_20, t_0, y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, N_samples):
-    S_1 = np.zeros(N_samples)
-    S_2 = np.zeros(N_samples)
-    T = np.zeros(N_samples)
+def sample(y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, nSamples):
+    S_1 = np.zeros(nSamples)
+    S_2 = np.zeros(nSamples)
+    T = np.zeros(nSamples)
 
-    s_1, s_2 = s_10,s_20
-    t = t_0
-    for k in range(N_samples):
+    s_1, s_2 = 0, 0
+    for k in range(nSamples):
         t = Pt_s1s2y(s_1, s_2, y, sigma_t)
-        s_1, s_2 = Ps1_s2ty(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t)
+        s_1, s_2 = Ps1s2_t(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t)
         S_1[k] = s_1
         S_2[k] = s_2
         T[k] = t
     
     return S_1, S_2, T
 
-
-def gaussian_approx(s_vec, n_burn=5):
-    s_var = math.sqrt(np.var(s_vec[n_burn:]))
-    s_mean = np.mean(s_vec[n_burn:])
+# Finds the underlying normal distribution
+def gaussian_approx(s_vec):
+    s_var = math.sqrt(np.var(s_vec))
+    s_mean = np.mean(s_vec)
     return norm(loc=s_mean, scale=s_var), s_mean, s_var
 
 
-"""
-The Gibbs sampler from Q.4 processes the result of one match to give a posterior distribution of
-the skills given the match. We can use this posterior distribution as a prior for the next match in
-what is commonly known as assumed density filtering (ADF). In this way, we can process a stream
-of different matches between the players, each time using the posterior distribution of the previous
-match as the prior for the current match.
-m
-• Use ADF with Gibbs sampling to process the matches in the SerieA dataset and estimate
-the skill of all the teams in the dataset (each team is one Player with an associated skill
-s i ). Note that there are draws in the dataset! For now, skip these matches and suppose that
-they leave the skill unchanged for both players. For now, also skip the information of goals
-scored. Only consider how won or lost the game.
-What is the final ranking? Present the results in a suitable way. How can you interpret the
-variance of the final skills?
+# Q4 - Run a single match
+def singleMatch():
 
-• Change the order of the matches in the SerieA dataset at random and re-run ADF. Does the
-result change? Why?
-"""
+    # starting values
+    y = 1
+    mu_1 = 25
+    mu_2 = 25
+    sigma_1 = 3
+    sigma_2 = 3
+    sigma_t = 1.5
+    N_samples = 1000
+    n_burn = 5
+    S_1, S_2, T = sample(y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, N_samples)
 
+    # Q4.1 burn-in is about 5 values
+    gen = np.linspace(0, N_samples - 1, N_samples)
+    plt.plot(gen, S_1, "g")
+    plt.plot(gen, S_2, "r")
+    plt.plot(gen, T, "b")
+    plt.show()
 
-def ADF(score_df, s_10, s_20, t_0, mu_1, sigma_1, sigma_t, N_samples, n_burn):
+    # Q 4.2 gaussian_approx
+    # Q 4.3
+    s1_approx, _, _ = gaussian_approx(S_1[n_burn:])
+    s2_approx, _, _ = gaussian_approx(S_2[n_burn:])
+    
+    x = np.linspace(0, 40, 200)
+    p_s1 = s1_approx.pdf(x)
+    p_s2 = s2_approx.pdf(x)
+
+    # Q.4
+    bins = int(math.sqrt(N_samples))
+    plt.hist(S_1[n_burn:], bins=bins, color="r", density=True)
+    plt.plot(x, p_s1, color="darkred")
+    plt.hist(S_2[n_burn:], bins=bins, color="g", density=True)
+    plt.plot(x, p_s2, color="darkgreen")
+    plt.hist(T[n_burn:], bins=bins, color="b", density=True)
+    plt.legend(["S1", "P1", "S2", "P2", "T"])
+    plt.show()
+
+singleMatch()
+
+# %% 
+
+# Assumed Density Filtering
+def ADF(score_df, mu0, sigma0,
+        sigma_t, N_samples, n_burn):
     mean_var_mat = np.zeros([score_df.shape[0], 6])
     mu_var_dict = {
-        team_name: [mu_1, sigma_1, 0]
+        team_name: [mu0, sigma0, 0]
         for team_name in set(score_df.team1.tolist() + score_df.team2.tolist())
     }
     i = 0
     for _, row in score_df.iterrows():
-        mu_1, sigma_1, matchN_1 = mu_var_dict[row["team1"]]
-        mu_2, sigma_2, matchN_2 = mu_var_dict[row["team2"]]
+        team1, team2 = row["team1"], row["team2"]
+        mu_1, sigma_1, matchN_1 = mu_var_dict[team1]
+        mu_2, sigma_2, matchN_2 = mu_var_dict[team2]
         y = row["winner"]
 
         msg = f"{row['team1']}: mu:{mu_1} sigma: {sigma_1}\n"
         msg += f"{row['team2']}: mu:{mu_2} sigma: {sigma_2}\n"
         print(msg)
+
         S_1, S_2, _ = sample(
-            s_10,
-            s_20,
-            t_0,
-            y,
-            mu_1,
-            mu_2,
-            sigma_1,
-            sigma_2,
-            sigma_t,
-            N_samples)
+                            y,
+                            mu_1,
+                            mu_2,
+                            sigma_1,
+                            sigma_2,
+                            sigma_t,
+                            N_samples)
 
-        _, mu_1, sigma_1 = gaussian_approx(S_1, n_burn)
-        _, mu_1, sigma_1 = gaussian_approx(S_2, n_burn)
+        _, mu_1, sigma_1 = gaussian_approx(S_1[n_burn:])
+        _, mu_1, sigma_1 = gaussian_approx(S_2[n_burn:])
 
-        matchN_1 = matchN_1 + 1
-        matchN_2 = matchN_2 + 1
-
-        mu_var_dict[row["team1"]] = [mu_1, sigma_1, matchN_1]
-        mu_var_dict[row["team2"]] = [mu_2, sigma_2, matchN_2]
-        mean_var_mat[i, ] = [mu_1, sigma_1, matchN_1, mu_2, sigma_2, matchN_2]
+        mu_var_dict[team1] = [mu_1, sigma_1, matchN_1+1]
+        mu_var_dict[team2] = [mu_2, sigma_2, matchN_2+1]
+        mean_var_mat[i,:] = [mu_1, sigma_1, matchN_1,
+                             mu_2, sigma_2, matchN_2]
         i += 1
     return mean_var_mat
 
 
+# Q5
+def rankTeams():
+    # Load dataframe from file
+    seriesA_df = pd.read_csv("data/SerieA.csv", sep=",")
 
-### RUN
-s_10 = 0
-s_20 = 0
-t_0 = 0
-y = 1
-mu_1 = 25
-mu_2 = 25
-sigma_1 = 3
-sigma_2 = 3
-sigma_t = 1.5
-N_samples = 50
-n_burn = 5
-S_1, S_2, T = sample(s_10, s_20, t_0, y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, N_samples)
-
-# Q 4.1 like 5 values?
-gen = np.linspace(0, N_samples - 1, N_samples)
-plt.plot(gen, S_1, "g")
-plt.plot(gen, S_2, "r")
-plt.plot(gen, T, "b")
-plt.show()
-
-# Q 4.2 gaussian_approx
-# Q 4.3
-x = np.linspace(0, 40, 200)
-
-s1_approx, _, _ = gaussian_approx(S_1, n_burn)
-s2_approx, _, _ = gaussian_approx(S_2, n_burn)
-p_s1 = s1_approx.pdf(x)
-p_s2 = s2_approx.pdf(x)
-
-# Q.4
-bins = int(math.sqrt(N_samples))
-plt.hist(S_1[n_burn:], bins=bins, color="r", density=True)
-plt.plot(x, p_s1, color="darkred")
-plt.hist(S_2[n_burn:], bins=bins, color="g", density=True)
-plt.plot(x, p_s2, color="darkgreen")
-plt.hist(T[n_burn:], bins=bins, color="b", density=True)
-plt.legend(["S1", "P1", "S2", "P2", "T"])
-plt.show()
+    # Adds a column for the winner
+    seriesA_df["diff"] = seriesA_df.score1 - seriesA_df.score2
+    winner = lambda x: 1 if x > 0 else (-1 if x < 0 else 0)
+    seriesA_df["winner"] = seriesA_df["diff"].apply(winner)
+    seriesA_df = seriesA_df[seriesA_df.winner != 0]
 
 
-# %%
-# Q 5
-seriesA_df = pd.read_csv("data/SerieA.csv", sep=",")
+    mu0, sigma0 = 25,3
+    sigma_t = 1.5
+    scores = ADF(seriesA_df, mu0, sigma0, sigma_t, 100, 5)
+    scores_df = pd.DataFrame(scores)
+    scores_df = scores_df.rename(
+        {
+            0: "mu1",
+            1: "sigma_1",
+            2: "matchN1",
+            3: "mu2",
+            4: "sigma_2",
+            5: "matchN2"
+        }, axis=1)
 
+    series_A_scored = pd.concat([seriesA_df.reset_index(drop=True),
+                                 scores_df], axis=1)
 
-seriesA_df["diff"] = seriesA_df.score1 - seriesA_df.score2
-winner = lambda x: 1 if x > 0 else (-1 if x < 0 else 0)
-seriesA_df["winner"] = seriesA_df["diff"].apply(winner)
-seriesA_df = seriesA_df[seriesA_df.winner != 0]
-
-
-scores = ADF(seriesA_df, s_10, s_20, t_0, mu_1, sigma_1, sigma_t, N_samples, n_burn)
-scores_df = pd.DataFrame(scores)
-scores_df = scores_df.rename(
-    {
-        0: "mu1",
-        1: "sigma_1",
-        2: "matchN1",
-        3: "mu2",
-        4: "sigma_2",
-        5: "matchN2"
+    part1 = series_A_scored[["team1", "mu1", "sigma_1", "matchN1"]]
+    part1 = part1.rename({
+        "team1": "team", "mu1": "mu", "sigma_1": "sigma", "matchN1": "matchN"
+    }, axis=1)
+    part2 = series_A_scored[["team2", "mu2", "sigma_2", "matchN2"]]
+    part2 = part2.rename({
+        "team2": "team", "mu2": "mu", "sigma_2": "sigma", "matchN2": "matchN"
     }, axis=1)
 
-series_A_scored = pd.concat([seriesA_df.reset_index(drop=True), scores_df], axis=1)
+    matched_results = pd.concat([part1, part2])
+    matched_results.to_csv("test.csv")
 
-part1 = series_A_scored[["team1", "mu1", "sigma_1", "matchN1"]]
-part1 = part1.rename({
-    "team1": "team", "mu1": "mu", "sigma_1": "sigma", "matchN1": "matchN"
-}, axis=1)
-part2 = series_A_scored[["team2", "mu2", "sigma_2", "matchN2"]]
-part2 = part2.rename({
-    "team2": "team", "mu2": "mu", "sigma_2": "sigma", "matchN2": "matchN"
-}, axis=1)
+rankTeams()
 
-matched_results = pd.concat([part1, part2])
-matched_results.to_csv("test.csv")
+# %%
