@@ -1,3 +1,4 @@
+# %%
 import math
 import pandas as pd
 from scipy.stats import truncnorm, multivariate_normal, norm
@@ -5,17 +6,10 @@ import numpy as np
 import numpy.linalg as lg
 import matplotlib.pyplot as plt
 
+# %%
 
-def P_tssy(s1, s2, y, sigma_t):
-    """
-
-    :param s1:
-    :param s2:
-    :param y:
-    :param sigma_t:
-    :return:
-    float t_n+1
-    """
+# P(t|s1,s2,y)
+def Pt_s1s2y(s1, s2, y, sigma_t):
     mean = s1 - s2
     a = -mean / sigma_t
     b_bound = (np.inf if y > 0 else -np.inf)
@@ -29,8 +23,8 @@ def P_tssy(s1, s2, y, sigma_t):
     )[0]
     return t_new
 
-
-def P_ssty(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t):
+# P(s1|s2,t,y)
+def Ps1_s2ty(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t):
     cov_s = np.matrix([[sigma_1, 0], [0, sigma_2]])
     A = np.matrix([1, -1])
     cov_s1s2_t = lg.inv(lg.inv(cov_s) + 1 / sigma_t * A.T.dot(A))
@@ -47,31 +41,22 @@ def P_ssty(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t):
     return S
 
 
+# Sample from the posterior P(s1,s2|t,y)
 def sample(s_10, s_20, t_0, y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, N_samples):
     S_1 = np.zeros(N_samples)
     S_2 = np.zeros(N_samples)
     T = np.zeros(N_samples)
 
-    return _sample(
-        s_10, s_20, t_0, y,
-        mu_1, mu_2, sigma_1, sigma_2,
-        sigma_t, N_samples, S_1, S_2, T, 0)
-
-
-def _sample(s_1, s_2, t, y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, N_samples, S_1, S_2, T, k):
-    if k == N_samples:
-        return S_1, S_2, T
-    else:
-        tn = P_tssy(s_1, s_2, y, sigma_t)
-        s_1n, s_2n = P_ssty(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t)
+    s_1, s_2 = s_10,s_20
+    t = t_0
+    for k in range(N_samples):
+        t = Pt_s1s2y(s_1, s_2, y, sigma_t)
+        s_1, s_2 = Ps1_s2ty(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t)
         S_1[k] = s_1
         S_2[k] = s_2
         T[k] = t
-
-        return _sample(
-            s_1n, s_2n, tn, y,
-            mu_1, mu_2, sigma_1, sigma_2,
-            sigma_t, N_samples, S_1, S_2, T, k + 1)
+    
+    return S_1, S_2, T
 
 
 def gaussian_approx(s_vec, n_burn=5):
@@ -100,8 +85,6 @@ result change? Why?
 """
 
 
-ADF(seriesA_df, s_10, s_20, t_0, mu_1, sigma_1, sigma_t, N_samples=200, n_burn=5)
-
 def ADF(score_df, s_10, s_20, t_0, mu_1, sigma_1, sigma_t, N_samples=200, n_burn=5):
     mean_var_mat = np.matrix([score_df.shape[0], 4])
     mu_var_dict = {
@@ -122,6 +105,7 @@ def ADF(score_df, s_10, s_20, t_0, mu_1, sigma_1, sigma_t, N_samples=200, n_burn
         mu_var_dict[row["team2"]] = [mu_2, sigma_2]
         mean_var_mat[i, ] = [mu_1, sigma_1, mu_2, sigma_2]
     return mean_var_mat
+
 
 
 ### RUN
@@ -168,13 +152,24 @@ b = 12
 c = "då"
 print(f"{a} {b} {c}")
 
+
+# %%
 # Q 5
 seriesA_df = pd.read_csv("data/SerieA.csv", sep=",")
+
+
 seriesA_df["diff"] = seriesA_df.score1 - seriesA_df.score2
 winner = lambda x: 1 if x > 0 else (-1 if x < 0 else 0)
 seriesA_df["winner"] = seriesA_df["diff"].apply(winner)
 seriesA_df = seriesA_df[seriesA_df.winner != 0]
 
-seriesA_df.groupby(["team1", "team2"])
 
-ADF(seriesA_df, s_10, s_20, mu_1, sigma_1, sigma_t, N_samples=200, n_burn=5)
+
+matchups = seriesA_df.groupby(["team1", "team2"])
+# %%
+
+
+ADF(seriesA_df, s_10, s_20, t_0, mu_1, sigma_1, sigma_t, N_samples=200, n_burn=5)
+
+
+# %%
