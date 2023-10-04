@@ -1,13 +1,12 @@
 import math
-
-import scipy
-from scipy.stats import truncnorm, multivariate_normal
+import pandas as pd
+from scipy.stats import truncnorm, multivariate_normal, norm
 import numpy as np
 import numpy.linalg as lg
 import matplotlib.pyplot as plt
 
 
-def Pt_ssy(s1, s2, y, sigma_t):
+def P_tssy(s1, s2, y, sigma_t):
     """
 
     :param s1:
@@ -31,7 +30,7 @@ def Pt_ssy(s1, s2, y, sigma_t):
     return t_new
 
 
-def Ps1_sty(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t):
+def P_ssty(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t):
     cov_s = np.matrix([[sigma_1, 0], [0, sigma_2]])
     A = np.matrix([1, -1])
     cov_s1s2_t = lg.inv(lg.inv(cov_s) + 1 / sigma_t * A.T.dot(A))
@@ -75,10 +74,54 @@ def _sample(s_1, s_2, t, y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, N_samples, S_
             sigma_t, N_samples, S_1, S_2, T, k + 1)
 
 
-def gaussian_approx(s1_vec, s2_vec, n_burn=5):
-    s_cov = np.cov(s1_vec[5:], s2_vec[5:])
-    s_mean = [np.mean(s1_vec[5:]), np.mean(s2_vec[5:])]
-    return multivariate_normal(mean=s_mean, cov=s_cov)
+def gaussian_approx(s_vec, n_burn=5):
+    s_var = math.sqrt(np.var(s_vec[n_burn:]))
+    s_mean = np.mean(s_vec[n_burn:])
+    return norm(loc=s_mean, scale=s_var), s_mean, s_var
+
+
+"""
+The Gibbs sampler from Q.4 processes the result of one match to give a posterior distribution of
+the skills given the match. We can use this posterior distribution as a prior for the next match in
+what is commonly known as assumed density filtering (ADF). In this way, we can process a stream
+of different matches between the players, each time using the posterior distribution of the previous
+match as the prior for the current match.
+m
+• Use ADF with Gibbs sampling to process the matches in the SerieA dataset and estimate
+the skill of all the teams in the dataset (each team is one Player with an associated skill
+s i ). Note that there are draws in the dataset! For now, skip these matches and suppose that
+they leave the skill unchanged for both players. For now, also skip the information of goals
+scored. Only consider how won or lost the game.
+What is the final ranking? Present the results in a suitable way. How can you interpret the
+variance of the final skills?
+
+• Change the order of the matches in the SerieA dataset at random and re-run ADF. Does the
+result change? Why?
+"""
+
+
+ADF(seriesA_df, s_10, s_20, t_0, mu_1, sigma_1, sigma_t, N_samples=200, n_burn=5)
+
+def ADF(score_df, s_10, s_20, t_0, mu_1, sigma_1, sigma_t, N_samples=200, n_burn=5):
+    mean_var_mat = np.matrix([score_df.shape[0], 4])
+    mu_var_dict = {
+        team_name: [mu_1, sigma_1]
+        for team_name in set(score_df.team1.tolist() + score_df.team2.tolist())
+    }
+    for i, row in score_df.iterrows():
+        mu_1, sigma_1 = mu_var_dict[row["team1"]]
+        mu_2, sigma_2 = mu_var_dict[row["team2"]]
+        y = row["winner"]
+
+        S_1, S_2, _ = sample(s_10, s_20, t_0, y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, N_samples)
+
+        _, mu_1, sigma_1 = gaussian_approx(S_1, n_burn)
+        _, mu_1, sigma_1 = gaussian_approx(S_2, n_burn)
+
+        mu_var_dict[row["team1"]] = [mu_1, sigma_1]
+        mu_var_dict[row["team2"]] = [mu_2, sigma_2]
+        mean_var_mat[i, ] = [mu_1, sigma_1, mu_2, sigma_2]
+    return mean_var_mat
 
 
 ### RUN
@@ -91,7 +134,7 @@ mu_2 = 25
 sigma_1 = 25 / 3
 sigma_2 = 25 / 3
 sigma_t = 25 / 6
-N_samples = 2000
+N_samples = 50
 n_burn = 5
 S_1, S_2, T = sample(s_10, s_20, t_0, y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, N_samples)
 
@@ -104,23 +147,34 @@ plt.show()
 
 # Q 4.2 gaussian_approx
 # Q 4.3
-x1 = np.linspace(0, 40, 200)
-x = np.matrix([x1, [mu_2]*len(x1)]).T
+x = np.linspace(0, 40, 200)
 
-gm = gaussian_approx(S_1, S_2, n_burn)
-p = gm.pdf(x)
+s1_approx, _, _ = gaussian_approx(S_1, n_burn)
+s2_approx, _, _ = gaussian_approx(S_2, n_burn)
+p_s1 = s1_approx.pdf(x)
+p_s2 = s2_approx.pdf(x)
 
+# Q.4
 bins = int(math.sqrt(N_samples))
 plt.hist(S_1[n_burn:], bins=bins, color="r", density=True)
+plt.plot(x, p_s1, color="darkred")
 plt.hist(S_2[n_burn:], bins=bins, color="g", density=True)
+plt.plot(x, p_s2, color="darkgreen")
 plt.hist(T[n_burn:], bins=bins, color="b", density=True)
-plt.legend(["S1", "S2", "T"])
+plt.legend(["S1", "P1", "S2", "P2", "T"])
 plt.show()
+a = "hej"
+b = 12
+c = "då"
+print(f"{a} {b} {c}")
 
-xx, yy = np.meshgrid(x1, x1)
+# Q 5
+seriesA_df = pd.read_csv("data/SerieA.csv", sep=",")
+seriesA_df["diff"] = seriesA_df.score1 - seriesA_df.score2
+winner = lambda x: 1 if x > 0 else (-1 if x < 0 else 0)
+seriesA_df["winner"] = seriesA_df["diff"].apply(winner)
+seriesA_df = seriesA_df[seriesA_df.winner != 0]
 
-x, y = np.mgrid[0:30:1, 0:30:1]
-pos = np.dstack((x, y))
-fig2 = plt.figure()
-ax2 = fig2.add_subplot(111)
-ax2.contourf(x, y, gm.pdf(pos))
+seriesA_df.groupby(["team1", "team2"])
+
+ADF(seriesA_df, s_10, s_20, mu_1, sigma_1, sigma_t, N_samples=200, n_burn=5)
