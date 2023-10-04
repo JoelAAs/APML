@@ -1,3 +1,21 @@
+# %% Load data
+
+df_orig = pd.read_csv(PATH+r"\SerieA.csv")
+# Copy original in-data
+df_orig.columns = ["date", "time", "team 1", "team 2",
+                           "goals team 1", "goals team 2"]
+
+# %% Work with data
+df = df_orig.copy()
+
+unique_teams = df["team 1"].unique()
+unique_teams = df[~df.duplicated(subset=["team 1"])].copy()
+unique_teams = unique_teams[["team 1"]].sort_values("team 1")
+df['winning team']  = np.sign(df.loc[:,"goals team 1"] - df.loc[:,"goals team 2"])
+indexDraw = df[ (df['winning team'] == 0) ].index
+df.drop(indexDraw , inplace=True)
+df=df.reset_index(drop=True)
+
 #%%
 # Q5
 
