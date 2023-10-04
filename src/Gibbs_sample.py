@@ -1,16 +1,27 @@
 import math
+
+import scipy
 from scipy.stats import truncnorm, multivariate_normal
 import numpy as np
 import numpy.linalg as lg
 import matplotlib.pyplot as plt
 
 
-def P_tssy(s1, s2, y, sigma_t):
-    mean = s1 - s2
+def Pt_ssy(s1, s2, y, sigma_t):
+    """
 
+    :param s1:
+    :param s2:
+    :param y:
+    :param sigma_t:
+    :return:
+    float t_n+1
+    """
+    mean = s1 - s2
+    a = -mean / sigma_t
     b_bound = (np.inf if y > 0 else -np.inf)
     t_new = truncnorm(
-        a=0,
+        a=a,
         b=b_bound,
         loc=mean,
         scale=sigma_t
@@ -20,7 +31,7 @@ def P_tssy(s1, s2, y, sigma_t):
     return t_new
 
 
-def P_ssty(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t):
+def Ps1_sty(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t):
     cov_s = np.matrix([[sigma_1, 0], [0, sigma_2]])
     A = np.matrix([1, -1])
     cov_s1s2_t = lg.inv(lg.inv(cov_s) + 1 / sigma_t * A.T.dot(A))
@@ -64,38 +75,52 @@ def _sample(s_1, s_2, t, y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, N_samples, S_
             sigma_t, N_samples, S_1, S_2, T, k + 1)
 
 
-### RUN
-s_10 = 5
-s_20 = 5
-t_0 = 1
-y = 1
-mu_1 = 15
-mu_2 = 15
-sigma_1 = 1
-sigma_2 = 1
-sigma_t = 1
-N_samples = 1000
+def gaussian_approx(s1_vec, s2_vec, n_burn=5):
+    s_cov = np.cov(s1_vec[5:], s2_vec[5:])
+    s_mean = [np.mean(s1_vec[5:]), np.mean(s2_vec[5:])]
+    return multivariate_normal(mean=s_mean, cov=s_cov)
 
+
+### RUN
+s_10 = 0
+s_20 = 0
+t_0 = 0
+y = 1
+mu_1 = 25
+mu_2 = 25
+sigma_1 = 25 / 3
+sigma_2 = 25 / 3
+sigma_t = 25 / 6
+N_samples = 2000
+n_burn = 5
 S_1, S_2, T = sample(s_10, s_20, t_0, y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, N_samples)
 
+# Q 4.1 like 5 values?
 gen = np.linspace(0, N_samples - 1, N_samples)
 plt.plot(gen, S_1, "g")
 plt.plot(gen, S_2, "r")
 plt.plot(gen, T, "b")
-
 plt.show()
 
-<<<<<<< HEAD
-plt.hist(S_1[25:], bins=int(math.sqrt(N_samples)), color="r")
-plt.hist(S_2[25:], bins=int(math.sqrt(N_samples)), color="g")
-plt.hist(T[25:], bins=int(math.sqrt(N_samples)), color="b")
-plt.legend(["S1", "S2", "T"])
-=======
+# Q 4.2 gaussian_approx
+# Q 4.3
+x1 = np.linspace(0, 40, 200)
+x = np.matrix([x1, [mu_2]*len(x1)]).T
+
+gm = gaussian_approx(S_1, S_2, n_burn)
+p = gm.pdf(x)
+
 bins = int(math.sqrt(N_samples))
-
-plt.hist(S_1, bins=bins,  color= "r")
-plt.hist(S_2, bins=bins, color=  "g")
-plt.hist(T,bins=bins, color= "b")
-plt.legend(["S_1", "S_2", "T"])
->>>>>>> 08bfeb6a91ee213f44f7b0d90fff0246387071c0
+plt.hist(S_1[n_burn:], bins=bins, color="r", density=True)
+plt.hist(S_2[n_burn:], bins=bins, color="g", density=True)
+plt.hist(T[n_burn:], bins=bins, color="b", density=True)
+plt.legend(["S1", "S2", "T"])
 plt.show()
+
+xx, yy = np.meshgrid(x1, x1)
+
+x, y = np.mgrid[0:30:1, 0:30:1]
+pos = np.dstack((x, y))
+fig2 = plt.figure()
+ax2 = fig2.add_subplot(111)
+ax2.contourf(x, y, gm.pdf(pos))
