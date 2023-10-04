@@ -11,11 +11,16 @@ import matplotlib.pyplot as plt
 # P(t|s1,s2,y)
 def Pt_s1s2y(s1, s2, y, sigma_t):
     mean = s1 - s2
-    a = -mean / sigma_t
-    b_bound = (np.inf if y > 0 else -np.inf)
+    if y > 0:
+        lim1 = -mean / sigma_t
+        lim2 = np.inf
+    else:
+        lim1 = -np.inf
+        lim2 = -mean / sigma_t
+
     t_new = truncnorm(
-        a=a,
-        b=b_bound,
+        a=lim1,
+        b=lim2,
         loc=mean,
         scale=sigma_t
     ).rvs(
@@ -85,25 +90,43 @@ result change? Why?
 """
 
 
-def ADF(score_df, s_10, s_20, t_0, mu_1, sigma_1, sigma_t, N_samples=200, n_burn=5):
-    mean_var_mat = np.matrix([score_df.shape[0], 4])
+def ADF(score_df, s_10, s_20, t_0, mu_1, sigma_1, sigma_t, N_samples, n_burn):
+    mean_var_mat = np.zeros([score_df.shape[0], 6])
     mu_var_dict = {
-        team_name: [mu_1, sigma_1]
+        team_name: [mu_1, sigma_1, 0]
         for team_name in set(score_df.team1.tolist() + score_df.team2.tolist())
     }
-    for i, row in score_df.iterrows():
-        mu_1, sigma_1 = mu_var_dict[row["team1"]]
-        mu_2, sigma_2 = mu_var_dict[row["team2"]]
+    i = 0
+    for _, row in score_df.iterrows():
+        mu_1, sigma_1, matchN_1 = mu_var_dict[row["team1"]]
+        mu_2, sigma_2, matchN_2 = mu_var_dict[row["team2"]]
         y = row["winner"]
 
-        S_1, S_2, _ = sample(s_10, s_20, t_0, y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, N_samples)
+        msg = f"{row['team1']}: mu:{mu_1} sigma: {sigma_1}\n"
+        msg += f"{row['team2']}: mu:{mu_2} sigma: {sigma_2}\n"
+        print(msg)
+        S_1, S_2, _ = sample(
+            s_10,
+            s_20,
+            t_0,
+            y,
+            mu_1,
+            mu_2,
+            sigma_1,
+            sigma_2,
+            sigma_t,
+            N_samples)
 
         _, mu_1, sigma_1 = gaussian_approx(S_1, n_burn)
         _, mu_1, sigma_1 = gaussian_approx(S_2, n_burn)
 
-        mu_var_dict[row["team1"]] = [mu_1, sigma_1]
-        mu_var_dict[row["team2"]] = [mu_2, sigma_2]
-        mean_var_mat[i, ] = [mu_1, sigma_1, mu_2, sigma_2]
+        matchN_1 = matchN_1 + 1
+        matchN_2 = matchN_2 + 1
+
+        mu_var_dict[row["team1"]] = [mu_1, sigma_1, matchN_1]
+        mu_var_dict[row["team2"]] = [mu_2, sigma_2, matchN_2]
+        mean_var_mat[i, ] = [mu_1, sigma_1, matchN_1, mu_2, sigma_2, matchN_2]
+        i += 1
     return mean_var_mat
 
 
@@ -115,9 +138,9 @@ t_0 = 0
 y = 1
 mu_1 = 25
 mu_2 = 25
-sigma_1 = 25 / 3
-sigma_2 = 25 / 3
-sigma_t = 25 / 6
+sigma_1 = 3
+sigma_2 = 3
+sigma_t = 1.5
 N_samples = 50
 n_burn = 5
 S_1, S_2, T = sample(s_10, s_20, t_0, y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, N_samples)
@@ -147,10 +170,6 @@ plt.plot(x, p_s2, color="darkgreen")
 plt.hist(T[n_burn:], bins=bins, color="b", density=True)
 plt.legend(["S1", "P1", "S2", "P2", "T"])
 plt.show()
-a = "hej"
-b = 12
-c = "då"
-print(f"{a} {b} {c}")
 
 
 # %%
@@ -164,12 +183,28 @@ seriesA_df["winner"] = seriesA_df["diff"].apply(winner)
 seriesA_df = seriesA_df[seriesA_df.winner != 0]
 
 
+scores = ADF(seriesA_df, s_10, s_20, t_0, mu_1, sigma_1, sigma_t, N_samples, n_burn)
+scores_df = pd.DataFrame(scores)
+scores_df = scores_df.rename(
+    {
+        0: "mu1",
+        1: "sigma_1",
+        2: "matchN1",
+        3: "mu2",
+        4: "sigma_2",
+        5: "matchN2"
+    }, axis=1)
 
-matchups = seriesA_df.groupby(["team1", "team2"])
-# %%
+series_A_scored = pd.concat([seriesA_df.reset_index(drop=True), scores_df], axis=1)
 
+part1 = series_A_scored[["team1", "mu1", "sigma_1", "matchN1"]]
+part1 = part1.rename({
+    "team1": "team", "mu1": "mu", "sigma_1": "sigma", "matchN1": "matchN"
+}, axis=1)
+part2 = series_A_scored[["team2", "mu2", "sigma_2", "matchN2"]]
+part2 = part2.rename({
+    "team2": "team", "mu2": "mu", "sigma_2": "sigma", "matchN2": "matchN"
+}, axis=1)
 
-ADF(seriesA_df, s_10, s_20, t_0, mu_1, sigma_1, sigma_t, N_samples=200, n_burn=5)
-
-
-# %%
+matched_results = pd.concat([part1, part2])
+matched_results.to_csv("test.csv")
