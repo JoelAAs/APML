@@ -5,6 +5,7 @@ from scipy.stats import truncnorm, multivariate_normal, norm
 import numpy as np
 import numpy.linalg as lg
 import matplotlib.pyplot as plt
+from tabulate import tabulate
 
 # %%
 
@@ -114,24 +115,23 @@ singleMatch()
 # %% 
 
 # Assumed Density Filtering
-def ADF(score_df, mu0, sigma0,
-        sigma_t, N_samples, n_burn):
-    mean_var_mat = np.zeros([score_df.shape[0], 6])
-    mu_var_dict = {
-        team_name: [mu0, sigma0, 0]
-        for team_name in set(score_df.team1.tolist() + score_df.team2.tolist())
-    }
+def ADF(nPlayers:int, results:np.array,
+        mu0, sigma0, sigma_t, nSamples, n_burn):
+    
+    history = np.zeros([len(results), 6])
+    playerSkills = np.array([[mu0, sigma0, 0]] * nPlayers,dtype=np.float32)
+
     i = 0
-    for _, row in score_df.iterrows():
-        team1, team2 = row["team1"], row["team2"]
-        mu_1, sigma_1, matchN_1 = mu_var_dict[team1]
-        mu_2, sigma_2, matchN_2 = mu_var_dict[team2]
-        y = row["winner"]
+    for row in results:
+        p1, p2, y = row
+        mu_1, sigma_1, matchNum_1 = playerSkills[p1]
+        mu_2, sigma_2, matchNum_2 = playerSkills[p2]
+       
+        # msg = f"{p1}: mu:{mu_1} sigma: {sigma_1}\n"
+        # msg += f"{p2}: mu:{mu_2} sigma: {sigma_2}\n"
+        # print(msg)
 
-        msg = f"{row['team1']}: mu:{mu_1} sigma: {sigma_1}\n"
-        msg += f"{row['team2']}: mu:{mu_2} sigma: {sigma_2}\n"
-        print(msg)
-
+        # Bayesian update with y - sample from the posterior
         S_1, S_2, _ = sample(
                             y,
                             mu_1,
@@ -139,17 +139,44 @@ def ADF(score_df, mu0, sigma0,
                             sigma_1,
                             sigma_2,
                             sigma_t,
-                            N_samples)
+                            nSamples)
 
+        # Estimate the parameters of the new normal distributions
         _, mu_1, sigma_1 = gaussian_approx(S_1[n_burn:])
         _, mu_1, sigma_1 = gaussian_approx(S_2[n_burn:])
 
-        mu_var_dict[team1] = [mu_1, sigma_1, matchN_1+1]
-        mu_var_dict[team2] = [mu_2, sigma_2, matchN_2+1]
-        mean_var_mat[i,:] = [mu_1, sigma_1, matchN_1,
-                             mu_2, sigma_2, matchN_2]
+        playerSkills[p1,:] = [mu_1, sigma_1, matchNum_1+1]
+        playerSkills[p2,:] = [mu_2, sigma_2, matchNum_2+1]
+        history[i,:] = [mu_1, sigma_1, matchNum_1,
+                        mu_2, sigma_2, matchNum_2]
         i += 1
-    return mean_var_mat
+    return playerSkills, history
+
+# ADF on pandas dataframe
+def ADFpd(results_df, mu0, sigma0, sigma_t, nSamples, n_burn):
+    # Adds a column for the winner
+    results_df["diff"] = results_df.score1 - results_df.score2
+    winner = lambda x: 1 if x > 0 else (-1 if x < 0 else 0)
+    results_df["winner"] = results_df["diff"].apply(winner)
+    results_df = results_df[results_df.winner != 0]
+
+    # Assign numbers to the players
+    players = pd.concat([results_df['team1'], results_df['team2']]).unique()
+    playerIDs = {players[i]:i for i in range(len(players))}
+    
+    # Convert to numpy array
+    results = np.zeros((results_df.shape[0],3),dtype=np.int32) # p1,p2,result
+    i = 0
+    for _, row in results_df.iterrows():
+        results[i,:] = np.array([playerIDs[row["team1"]],
+                            playerIDs[row["team2"]],
+                            row["winner"]])
+        i+=1
+    
+    playerSkills, history = ADF(len(players), results,
+                                mu0, sigma0, sigma_t, nSamples, n_burn)
+    return players, playerSkills, history
+
 
 
 # Q5
@@ -157,41 +184,39 @@ def rankTeams():
     # Load dataframe from file
     seriesA_df = pd.read_csv("data/SerieA.csv", sep=",")
 
-    # Adds a column for the winner
-    seriesA_df["diff"] = seriesA_df.score1 - seriesA_df.score2
-    winner = lambda x: 1 if x > 0 else (-1 if x < 0 else 0)
-    seriesA_df["winner"] = seriesA_df["diff"].apply(winner)
-    seriesA_df = seriesA_df[seriesA_df.winner != 0]
-
-
     mu0, sigma0 = 25,3
     sigma_t = 1.5
-    scores = ADF(seriesA_df, mu0, sigma0, sigma_t, 100, 5)
-    scores_df = pd.DataFrame(scores)
-    scores_df = scores_df.rename(
-        {
-            0: "mu1",
-            1: "sigma_1",
-            2: "matchN1",
-            3: "mu2",
-            4: "sigma_2",
-            5: "matchN2"
-        }, axis=1)
+    players, skills, history = ADFpd(seriesA_df, mu0, sigma0, sigma_t, 20, 5)
 
-    series_A_scored = pd.concat([seriesA_df.reset_index(drop=True),
-                                 scores_df], axis=1)
+    idx = np.flip(np.argsort(skills[:,0]))
+    print(tabulate(np.column_stack((players[idx], skills[idx])),
+                    headers=["player", "mu", "sigma", "games"]))
+   
+    # scores_df = pd.DataFrame(scores)
+    # scores_df = scores_df.rename(
+    #     {
+    #         0: "mu1",
+    #         1: "sigma_1",
+    #         2: "matchN1",
+    #         3: "mu2",
+    #         4: "sigma_2",
+    #         5: "matchN2"
+    #     }, axis=1)
 
-    part1 = series_A_scored[["team1", "mu1", "sigma_1", "matchN1"]]
-    part1 = part1.rename({
-        "team1": "team", "mu1": "mu", "sigma_1": "sigma", "matchN1": "matchN"
-    }, axis=1)
-    part2 = series_A_scored[["team2", "mu2", "sigma_2", "matchN2"]]
-    part2 = part2.rename({
-        "team2": "team", "mu2": "mu", "sigma_2": "sigma", "matchN2": "matchN"
-    }, axis=1)
+    # series_A_scored = pd.concat([seriesA_df.reset_index(drop=True),
+    #                              scores_df], axis=1)
 
-    matched_results = pd.concat([part1, part2])
-    matched_results.to_csv("test.csv")
+    # part1 = series_A_scored[["team1", "mu1", "sigma_1", "matchN1"]]
+    # part1 = part1.rename({
+    #     "team1": "team", "mu1": "mu", "sigma_1": "sigma", "matchN1": "matchN"
+    # }, axis=1)
+    # part2 = series_A_scored[["team2", "mu2", "sigma_2", "matchN2"]]
+    # part2 = part2.rename({
+    #     "team2": "team", "mu2": "mu", "sigma_2": "sigma", "matchN2": "matchN"
+    # }, axis=1)
+
+    # matched_results = pd.concat([part1, part2])
+    # matched_results.to_csv("test.csv")
 
 rankTeams()
 
