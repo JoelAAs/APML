@@ -1,11 +1,9 @@
 import numpy as np
 import pandas as pd
-from gibbs import Py_s1s2, sample, gaussian_approx
-
 
 # Assumed Density Filtering
 def ADF(nPlayers:int, results:np.array,
-        mu0, sigma0, Sigma_t, update:callable):
+        mu0, sigma0, Sigma_t, predict:callable, update:callable):
     
     playerSkills = np.array([[mu0, sigma0, 0]] * nPlayers, dtype=np.float32)
 
@@ -16,24 +14,24 @@ def ADF(nPlayers:int, results:np.array,
         mu2, sigma2, nMatches2 = playerSkills[p2]
        
         # Predict the outcome, count the hits
-        predicted = Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t)
-        nCorrect += round(predicted)*2-1 == y
+        nCorrect += predict(mu1, mu2, sigma1, sigma2, Sigma_t)==y
 
        # print(f"{mu_1} vs {mu_2} -> {predicted} but {y}")
 
+        # Bayesian update
         mu1,sigma1, mu2,sigma2 = update(mu1,sigma1, mu2,sigma2, y, Sigma_t)
-        
-        # Update
         playerSkills[p1,:] = [mu1, sigma1, nMatches1+1]
         playerSkills[p2,:] = [mu2, sigma2, nMatches2+1]
+        
         i += 1
         if i%10 == 0:
-            print(f"Done {i}/{len(results)}")
+            print(f"Finished {i}/{len(results)}")
 
     return playerSkills, nCorrect/i
 
 # ADF on pandas dataframe
-def ADFdf(results_df, mu0, sigma0, Sigma_t, updater:callable, shuffle:bool):
+def ADFdf(results_df, mu0, sigma0, Sigma_t,
+          predict:callable, update:callable, shuffle:bool):
     # Assign numbers to the players
     players = pd.concat([results_df['team1'], results_df['team2']]).unique()
     playerIDs = {players[i]:i for i in range(len(players))}
@@ -55,5 +53,5 @@ def ADFdf(results_df, mu0, sigma0, Sigma_t, updater:callable, shuffle:bool):
         np.random.shuffle(results)
 
     playerSkills, accuracy = ADF(len(players), results,
-                                 mu0, sigma0, Sigma_t, updater)
+                                 mu0, sigma0, Sigma_t, predict, update)
     return players, playerSkills, accuracy

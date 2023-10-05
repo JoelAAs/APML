@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from tabulate import tabulate
-from gibbs import sample, gaussian_approx, createGibbsUpdater
+from gibbs import Py_s1s2, sample, gaussian_approx, createGibbsUpdater
 from adf import ADFdf
 
 # %%
@@ -50,6 +50,10 @@ singleMatch()
 
 # %%
 
+# Predicts y
+def predict(mu1, mu2, sigma1, sigma2, Sigma_t):
+    return round(Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t))*2-1 
+
 # Q5, Q6
 def rankTeams():
     # Load dataframe from file
@@ -62,10 +66,11 @@ def rankTeams():
     nBurn = 5
 
     # Run ADF on the dataframe rows
-    updater = createGibbsUpdater(nSamples, nBurn)
+    update = createGibbsUpdater(nSamples, nBurn)
     teams, skills, accuracy = ADFdf(seriesA_df, mu0, sigma0, Sigma_t, 
-                                    updater, False)
+                                    predict, update, False)
 
+    
     # Tabulate resulting posteriors
     idx = np.flip(np.argsort(skills[:,0]))
     skilltable = np.column_stack((1+np.arange(len(teams)), teams[idx], skills[idx]))

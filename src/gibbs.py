@@ -68,21 +68,19 @@ def gaussian_approx(s_vec):
     return norm(loc=s_mean, scale=s_var), s_mean, s_var
 
 
-# TODO
+# Creates a callable Bayesian updater that uses Gibbs sampling
 def createGibbsUpdater(nSamples, nBurn):
     def updateGibbs(mu1,sigma1, mu2,sigma2, y, Sigma_t):
-        # Bayesian update - sample from the posterior
+        # Sample from the posterior
         s1s, s2s, _ = sample(y,
                             mu1, mu2,
                             sigma1, sigma2,
                             Sigma_t,
                             nSamples)
 
-        # Estimate the parameters of the new normal distributions
+        # Estimate the new parameters from the normal distributions
         _, mu1, sigma1 = gaussian_approx(s1s[nBurn:])
         _, mu2, sigma2 = gaussian_approx(s2s[nBurn:])
         return mu1, sigma1, mu2, sigma2
     return updateGibbs
-
-
 
