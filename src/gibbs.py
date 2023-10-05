@@ -1,18 +1,19 @@
 # %%
-from scipy.stats import truncnorm, multivariate_normal, norm
+from scipy.stats import truncnorm, norm
 from scipy.special import erfc
 import numpy as np
 import numpy.linalg as lg
 
 # P(t|s1,s2,y)
-def Pt_s1s2y(s1, s2, y, sigma_t):
+def Pt_s1s2y(s1, s2, y, Sigma_t):
     mean = s1 - s2
+    sigma_t = np.sqrt(Sigma_t)
     if y > 0:
-        lim1 = -mean / sigma_t
+        lim1 = -mean / Sigma_t
         lim2 = np.inf
     else:
         lim1 = -np.inf
-        lim2 = -mean / sigma_t
+        lim2 = -mean / Sigma_t
 
     t_new = truncnorm.rvs(
         a=lim1,
@@ -65,4 +66,23 @@ def gaussian_approx(s_vec):
     s_var = np.sqrt(np.var(s_vec))
     s_mean = np.mean(s_vec)
     return norm(loc=s_mean, scale=s_var), s_mean, s_var
+
+
+# TODO
+def createGibbsUpdater(nSamples, nBurn):
+    def updateGibbs(mu1,sigma1, mu2,sigma2, y, Sigma_t):
+        # Bayesian update - sample from the posterior
+        s1s, s2s, _ = sample(y,
+                            mu1, mu2,
+                            sigma1, sigma2,
+                            Sigma_t,
+                            nSamples)
+
+        # Estimate the parameters of the new normal distributions
+        _, mu1, sigma1 = gaussian_approx(s1s[nBurn:])
+        _, mu2, sigma2 = gaussian_approx(s2s[nBurn:])
+        return mu1, sigma1, mu2, sigma2
+    return updateGibbs
+
+
 

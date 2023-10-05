@@ -5,7 +5,7 @@ from gibbs import Py_s1s2, sample, gaussian_approx
 
 # Assumed Density Filtering
 def ADF(nPlayers:int, results:np.array,
-        mu0, sigma0, Sigma_t, nSamples, nBurn):
+        mu0, sigma0, Sigma_t, update:callable):
     
     playerSkills = np.array([[mu0, sigma0, 0]] * nPlayers, dtype=np.float32)
 
@@ -21,30 +21,19 @@ def ADF(nPlayers:int, results:np.array,
 
        # print(f"{mu_1} vs {mu_2} -> {predicted} but {y}")
 
-        # Bayesian update - sample from the posterior
-        s1s, s2s, _ = sample(y,
-                            mu1, mu2,
-                            sigma1, sigma2,
-                            Sigma_t,
-                            nSamples)
-
-        # if 
-        # print(f"")
-
-        # Estimate the parameters of the new normal distributions
-        _, mu1, sigma1 = gaussian_approx(s1s[nBurn:])
-        _, mu2, sigma2 = gaussian_approx(s2s[nBurn:])
-
+        mu1,sigma1, mu2,sigma2 = update(mu1,sigma1, mu2,sigma2, y, Sigma_t)
+        
         # Update
         playerSkills[p1,:] = [mu1, sigma1, nMatches1+1]
         playerSkills[p2,:] = [mu2, sigma2, nMatches2+1]
         i += 1
-        print(f"Done {i}/{len(results)}")
+        if i%10 == 0:
+            print(f"Done {i}/{len(results)}")
 
     return playerSkills, nCorrect/i
 
 # ADF on pandas dataframe
-def ADFdf(results_df, mu0, sigma0, Sigma_t, nSamples, nBurn):
+def ADFdf(results_df, mu0, sigma0, Sigma_t, updater:callable, shuffle:bool):
     # Assign numbers to the players
     players = pd.concat([results_df['team1'], results_df['team2']]).unique()
     playerIDs = {players[i]:i for i in range(len(players))}
@@ -61,6 +50,10 @@ def ADFdf(results_df, mu0, sigma0, Sigma_t, nSamples, nBurn):
                                          y])
         nDecisive += 1
     
-    playerSkills, accuracy = ADF(len(players), results[:nDecisive],
-                                 mu0, sigma0, Sigma_t, nSamples, nBurn)
+    results = results[:nDecisive]
+    if shuffle:
+        np.random.shuffle(results)
+
+    playerSkills, accuracy = ADF(len(players), results,
+                                 mu0, sigma0, Sigma_t, updater)
     return players, playerSkills, accuracy

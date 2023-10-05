@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from tabulate import tabulate
-from gibbs import sample, gaussian_approx
+from gibbs import sample, gaussian_approx, createGibbsUpdater
 from adf import ADFdf
 
 # %%
@@ -57,12 +57,14 @@ def rankTeams():
 
     # Choose hyper parameters
     mu0, sigma0 = 25, 25/3
-    Sigma_t = 1.5
-    nSamples = 1000
-    nBurn = 5 
+    Sigma_t = (25/6)**2
+    nSamples = 200
+    nBurn = 5
 
     # Run ADF on the dataframe rows
-    teams, skills, accuracy = ADFdf(seriesA_df, mu0, sigma0, Sigma_t, nSamples, nBurn)
+    updater = createGibbsUpdater(nSamples, nBurn)
+    teams, skills, accuracy = ADFdf(seriesA_df, mu0, sigma0, Sigma_t, 
+                                    updater, False)
 
     # Tabulate resulting posteriors
     idx = np.flip(np.argsort(skills[:,0]))
@@ -72,10 +74,11 @@ def rankTeams():
    
     print(f"Prediction accuray: {accuracy}")
 
-    # print(tabulate(skilltable,
-    #                 headers=["rank", "team", "mu", "sigma", "games"],
-    #                 floatfmt=".2f",
-    #                 tablefmt="latex_raw"))
+
+    print(tabulate(skilltable,
+                    headers=["Rank", "Team", "mu", "sigma", "Games"],
+                    floatfmt=[".2f",".2f",".2f",".2f",".0f"],
+                    tablefmt="latex_raw"))
 
 rankTeams()
 
