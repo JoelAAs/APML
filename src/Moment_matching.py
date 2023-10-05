@@ -4,7 +4,6 @@ Created on Wed Oct  4 15:55:55 2023
 
 @author: mohko200
 """
-import math
 import numpy as np
 import scipy.stats
 from scipy.stats import truncnorm
@@ -33,27 +32,24 @@ def gaussianMultiplication(m1, s1, m2, s2):
     v2 = s2 ** 2
     v = 1 / (1 / v1 + 1 / v2)
     m = (m1 / v1 + m2 / v2) * v
-    return m, math.sqrt(v)
+    return m, np.sqrt(v)
 
 
 def gaussianDivision(m1, s1, m2, s2):
-    v1 = s1 ** 2
-    v2 = s2 ** 2
-    m = (m1 * v2 - m2 * v1) / (v2 - v1)
-    v = v1 * v2 / (v2 - v1)
-    return m, math.sqrt(v)
+    m, v = gaussianMultiplication(m1, s1, m2, -s2)
+    return m, np.sqrt(v)
 
 
 def approx_q(mu_c2t, sigma_c2t, y):
     trunc_q = pt_y(mu_c2t, sigma_c2t, y)
     mu_q = trunc_q.mean()
-    sigma_q = math.sqrt(trunc_q.var())
+    sigma_q = np.sqrt(trunc_q.var())
     return mu_q, sigma_q, trunc_q
 
 
 def step_t2c(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y):
     mu_c2t = mu_1 - mu_2
-    sigma_c2t = math.sqrt(sigma_1 ** 2 + sigma_2 ** 2 + sigma_t ** 2)
+    sigma_c2t = np.sqrt(sigma_1 ** 2 + sigma_2 ** 2 + sigma_t ** 2)
     mu_q, sigma_q, trunc_q = approx_q(mu_c2t, sigma_c2t, y)
     mu_t2c, sigma_t2c = gaussianDivision(mu_q, sigma_q, mu_c2t, sigma_c2t)
 
@@ -61,39 +57,55 @@ def step_t2c(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y):
 
 
 def ps1_y(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y):
+    """
+    :return:
+    mu, sigma of player 2 given y
+    """
     mu_t2c, sigma_t2c, _ = step_t2c(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y)
     mu_c2s1 = mu_t2c + mu_2
-    sigma_c2s1 = math.sqrt(sigma_t ** 2 + sigma_2 ** 2 + sigma_t2c ** 2)
+    sigma_c2s1 = np.sqrt(sigma_t ** 2 + sigma_2 ** 2 + sigma_t2c ** 2)
     mu_s1y, sigma_s1y = gaussianMultiplication(mu_c2s1, sigma_c2s1, mu_1, sigma_1)
     return mu_s1y, sigma_s1y
 
 
 def ps2_y(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y):
+    """
+    :return:
+    mu, sigma of player 2 given y
+    """
     mu_t2c, sigma_t2c, _ = step_t2c(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y)
     mu_c2s2 = mu_1 - mu_t2c
-    sigma_c2s2 = math.sqrt(sigma_t ** 2 + sigma_1 ** 2 + sigma_t2c ** 2)
-    mu_s2y, sigma_s2y = gaussianMultiplication(mu_c2s2, sigma_c2s2, mu_1, sigma_1)
+    sigma_c2s2 = np.sqrt(sigma_t ** 2 + sigma_1 ** 2 + sigma_t2c ** 2)
+    mu_s2y, sigma_s2y = gaussianMultiplication(mu_c2s2, sigma_c2s2, mu_2, sigma_2)
     return mu_s2y, sigma_s2y
 
 
+def createMomentMatching():
+    def updateMomentMatching(mu1, sigma1, mu2, sigma2, y, Sigma_t):
+        sigma_t = np.sqrt(Sigma_t)
+        msg = (f"Starting y = {y}:\n"
+               f"Player1: mu:{mu1} sigma: {sigma1}\n"
+               f"Player2: mu:{mu2} sigma: {sigma2}\n"
+               f"=====================================")
+        mu1n, sigma1n = ps1_y(mu1, sigma1, mu2, sigma2, sigma_t, y)
+        mu2n, sigma2n = ps2_y(mu1, sigma1, mu2, sigma2, sigma_t, y)
+        msg += (f"\nRESULTS:\n"
+                f"Player1: mu:{mu1n} sigma: {sigma1n}\n"
+                f"Player2: mu:{mu2n} sigma: {sigma2n}\n")
+        print(msg)
+        return mu1n, sigma1n, mu2n, sigma2n
+
+    return updateMomentMatching
 
 
+def test():
+    mu0, sigma0 = 25, 25 / 3
+    sigma_t = 25 / 6
+    y = -1
+    mu1, s1 = ps1_y(mu0, sigma0, mu0, sigma0, sigma_t, y)
+    mu2, s2 = ps2_y(mu0, sigma0, mu0, sigma0, sigma_t, y)
 
-
-mu_1 = 25  # The mean of the prior s1
-sigma_1 = 3  # The variance of the prior s1
-mu_2 = 25  # The mean of the prior s2
-sigma_2 = 3  # The variance of the prior s1
-sigma_t = 1.5  # The variance of p(t|y)
-y = 1  # The measurement
-
-mu_t2c, sigma_t2c, trunc_q = step_t2c(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y)
-mu_s1y, sigma_s1y = ps1_y(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y)
-mu_s2y, sigma_s2y = ps2_y(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y)
-x = np.linspace(-5, 40, 1000)
-plt.plot(x, scipy.stats.norm(mu_t2c, sigma_t2c).pdf(x), color="r")
-plt.plot(x, trunc_q.pdf(x), color="b")
-plt.plot(x, scipy.stats.norm(mu_s1y, sigma_s1y).pdf(x), color="g")
-plt.plot(x, scipy.stats.norm(mu_s2y, sigma_s2y).pdf(x), color="y")
-
-plt.show()
+    x = np.linspace(0, 40, 200)
+    plt.plot(x, scipy.stats.norm(mu1, s1).pdf(x), "r")
+    plt.plot(x, scipy.stats.norm(mu2, s2).pdf(x), "g")
+    plt.show()
