@@ -1,3 +1,4 @@
 gibbs.ipynb
 data/
 *.csv
+__pycache__/

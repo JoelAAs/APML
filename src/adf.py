@@ -5,64 +5,62 @@ from gibbs import Py_s1s2, sample, gaussian_approx
 
 # Assumed Density Filtering
 def ADF(nPlayers:int, results:np.array,
-        mu0, sigma0, Sigma_t, nSamples, n_burn):
+        mu0, sigma0, Sigma_t, nSamples, nBurn):
     
-    history = np.zeros((len(results), 6))
     playerSkills = np.array([[mu0, sigma0, 0]] * nPlayers, dtype=np.float32)
 
     i,nCorrect = 0,0
     for row in results:
         p1, p2, y = row
-        mu_1, sigma_1, matchNum_1 = playerSkills[p1]
-        mu_2, sigma_2, matchNum_2 = playerSkills[p2]
+        mu1, sigma1, nMatches1 = playerSkills[p1]
+        mu2, sigma2, nMatches2 = playerSkills[p2]
        
-        # msg = f"{p1}: mu:{mu_1} sigma: {sigma_1}\n"
-        # msg += f"{p2}: mu:{mu_2} sigma: {sigma_2}\n"
-        # msg += f"pred = {Py_s1s2(mu_1, mu_2, sigma_1, sigma_2, Sigma_t)}, result = {y}\n"
-        # print(msg)
-
         # Predict the outcome, count the hits
-        nCorrect += round(Py_s1s2(mu_1, mu_2, sigma_1, sigma_2, Sigma_t))*2-1 == y
+        predicted = Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t)
+        nCorrect += round(predicted)*2-1 == y
 
-        # Bayesian update with y - sample from the posterior
-        S_1, S_2, _ = sample(y,
-                            mu_1, mu_2,
-                            sigma_1, sigma_2,
+       # print(f"{mu_1} vs {mu_2} -> {predicted} but {y}")
+
+        # Bayesian update - sample from the posterior
+        s1s, s2s, _ = sample(y,
+                            mu1, mu2,
+                            sigma1, sigma2,
                             Sigma_t,
                             nSamples)
 
-        # Estimate the parameters of the new normal distributions
-        _, mu_1, sigma_1 = gaussian_approx(S_1[n_burn:])
-        _, mu_1, sigma_1 = gaussian_approx(S_2[n_burn:])
+        # if 
+        # print(f"")
 
-        playerSkills[p1,:] = [mu_1, sigma_1, matchNum_1+1]
-        playerSkills[p2,:] = [mu_2, sigma_2, matchNum_2+1]
-        history[i,:] = [mu_1, sigma_1, matchNum_1,
-                        mu_2, sigma_2, matchNum_2]
+        # Estimate the parameters of the new normal distributions
+        _, mu1, sigma1 = gaussian_approx(s1s[nBurn:])
+        _, mu2, sigma2 = gaussian_approx(s2s[nBurn:])
+
+        # Update
+        playerSkills[p1,:] = [mu1, sigma1, nMatches1+1]
+        playerSkills[p2,:] = [mu2, sigma2, nMatches2+1]
         i += 1
+        print(f"Done {i}/{len(results)}")
+
     return playerSkills, nCorrect/i
 
 # ADF on pandas dataframe
-def ADFpd(results_df, mu0, sigma0, sigma_t, nSamples, n_burn):
-    # Adds a column for the winner
-    results_df["diff"] = results_df.score1 - results_df.score2
-    winner = lambda x: 1 if x > 0 else (-1 if x < 0 else 0)
-    results_df["winner"] = results_df["diff"].apply(winner)
-    results_df = results_df[results_df.winner != 0]
-
+def ADFdf(results_df, mu0, sigma0, Sigma_t, nSamples, nBurn):
     # Assign numbers to the players
     players = pd.concat([results_df['team1'], results_df['team2']]).unique()
     playerIDs = {players[i]:i for i in range(len(players))}
     
     # Convert to numpy array
     results = np.zeros((results_df.shape[0],3),dtype=np.int32) # p1,p2,result
-    i = 0
+    nDecisive = 0
     for _, row in results_df.iterrows():
-        results[i,:] = np.array([playerIDs[row["team1"]],
-                                 playerIDs[row["team2"]],
-                                 row["winner"]])
-        i+=1
+        y = np.sign(row["score1"] - row["score2"])
+        if y == 0:
+            continue
+        results[nDecisive,:] = np.array([playerIDs[row["team1"]],
+                                         playerIDs[row["team2"]],
+                                         y])
+        nDecisive += 1
     
-    playerSkills, accuracy = ADF(len(players), results,
-                                mu0, sigma0, sigma_t, nSamples, n_burn)
+    playerSkills, accuracy = ADF(len(players), results[:nDecisive],
+                                 mu0, sigma0, Sigma_t, nSamples, nBurn)
     return players, playerSkills, accuracy

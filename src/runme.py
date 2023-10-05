@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from tabulate import tabulate
 from gibbs import sample, gaussian_approx
-from adf import ADFpd
+from adf import ADFdf
 
 # %%
 
@@ -50,23 +50,23 @@ singleMatch()
 
 # %%
 
-# Q5
+# Q5, Q6
 def rankTeams():
     # Load dataframe from file
     seriesA_df = pd.read_csv("data/SerieA.csv", sep=",")
 
     # Choose hyper parameters
-    mu0, sigma0 = 25,3
+    mu0, sigma0 = 25, 25/3
     Sigma_t = 1.5
-    nSamples = 50
+    nSamples = 1000
     nBurn = 5 
 
     # Run ADF on the dataframe rows
-    teams, skills, accuracy = ADFpd(seriesA_df, mu0, sigma0, Sigma_t, nSamples, nBurn)
+    teams, skills, accuracy = ADFdf(seriesA_df, mu0, sigma0, Sigma_t, nSamples, nBurn)
 
     # Tabulate resulting posteriors
     idx = np.flip(np.argsort(skills[:,0]))
-    skilltable = np.column_stack((np.arange(len(teams)), teams[idx], skills[idx]))
+    skilltable = np.column_stack((1+np.arange(len(teams)), teams[idx], skills[idx]))
     print(tabulate(skilltable,
                     headers=["Rank", "Team", "mu", "sigma", "Games"]))
    
@@ -78,3 +78,19 @@ def rankTeams():
     #                 tablefmt="latex_raw"))
 
 rankTeams()
+
+# %%
+results_df = pd.read_csv("data/SerieA.csv", sep=",")
+results_df["diff"] = results_df.score1 - results_df.score2
+
+players = pd.concat([results_df['team1'], results_df['team2']]).unique()
+playerIDs = {players[i]:i for i in range(len(players))}
+
+# %%
+
+winner = lambda x: 1 if x > 0 else (-1 if x < 0 else 0)
+results_df["winner"] = results_df["diff"].apply(winner)
+results_df = results_df[results_df.winner != 0]
+teamFilter = "Juventus"
+print(results_df[results_df["team1"] == teamFilter]["winner"])
+print(results_df[results_df["team2"] == teamFilter]["winner"])
