@@ -2,6 +2,7 @@
 import math
 import pandas as pd
 from scipy.stats import truncnorm, multivariate_normal, norm
+from scipy.special import erfc
 import numpy as np
 import numpy.linalg as lg
 import matplotlib.pyplot as plt
@@ -30,13 +31,13 @@ def Pt_s1s2y(s1, s2, y, sigma_t):
     return t_new
 
 # P(s1,s2|t)
-def Ps1s2_t(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t):
-    cov_s = np.matrix([[sigma_1, 0], [0, sigma_2]])
+def Ps1s2_t(t, mu_1, mu_2, sigma_1, sigma_2, Sigma_t):
+    cov_s = np.matrix([[sigma_1**2, 0], [0, sigma_2**2]])
     A = np.matrix([1, -1])
-    cov_s1s2_t = lg.inv(lg.inv(cov_s) + 1 / sigma_t * A.T.dot(A))
+    cov_s1s2_t = lg.inv(lg.inv(cov_s) + 1 / Sigma_t * A.T.dot(A))
     mu_s1s2_t = cov_s1s2_t * (
             lg.inv(cov_s) * np.matrix([mu_1, mu_2]).T +
-            A.T * 1 / sigma_t * t
+            A.T * 1 / Sigma_t * t
     )
     S = multivariate_normal(
         mean=mu_s1s2_t.T.tolist()[0],
@@ -46,17 +47,23 @@ def Ps1s2_t(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t):
     )
     return S
 
+# P(y=1)
+def Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t):
+    mu = mu1 - mu2
+    sigma = Sigma_t + (sigma1**2 + sigma2**2)
+    return erfc(-mu/math.sqrt(2)/sigma)/2
+
 
 # Sample from the posterior P(s1,s2|t,y)
-def sample(y, mu_1, mu_2, sigma_1, sigma_2, sigma_t, nSamples):
+def sample(y, mu_1, mu_2, sigma_1, sigma_2, Sigma_t, nSamples):
     S_1 = np.zeros(nSamples)
     S_2 = np.zeros(nSamples)
     T = np.zeros(nSamples)
 
     s_1, s_2 = 0, 0
     for k in range(nSamples):
-        t = Pt_s1s2y(s_1, s_2, y, sigma_t)
-        s_1, s_2 = Ps1s2_t(t, mu_1, mu_2, sigma_1, sigma_2, sigma_t)
+        t = Pt_s1s2y(s_1, s_2, y, Sigma_t)
+        s_1, s_2 = Ps1s2_t(t, mu_1, mu_2, sigma_1, sigma_2, Sigma_t)
         S_1[k] = s_1
         S_2[k] = s_2
         T[k] = t
@@ -77,8 +84,8 @@ def singleMatch():
     y = 1
     mu_1 = 25
     mu_2 = 25
-    sigma_1 = 3
-    sigma_2 = 3
+    sigma_1 = 25/3
+    sigma_2 = 25/3
     sigma_t = 1.5
     N_samples = 1000
     n_burn = 5
@@ -116,12 +123,12 @@ singleMatch()
 
 # Assumed Density Filtering
 def ADF(nPlayers:int, results:np.array,
-        mu0, sigma0, sigma_t, nSamples, n_burn):
+        mu0, sigma0, Sigma_t, nSamples, n_burn):
     
-    history = np.zeros([len(results), 6])
-    playerSkills = np.array([[mu0, sigma0, 0]] * nPlayers,dtype=np.float32)
+    history = np.zeros((len(results), 6))
+    playerSkills = np.array([[mu0, sigma0, 0]] * nPlayers, dtype=np.float32)
 
-    i = 0
+    i,nCorrect = 0,0
     for row in results:
         p1, p2, y = row
         mu_1, sigma_1, matchNum_1 = playerSkills[p1]
@@ -129,16 +136,17 @@ def ADF(nPlayers:int, results:np.array,
        
         # msg = f"{p1}: mu:{mu_1} sigma: {sigma_1}\n"
         # msg += f"{p2}: mu:{mu_2} sigma: {sigma_2}\n"
+        # msg += f"pred = {Py_s1s2(mu_1, mu_2, sigma_1, sigma_2, Sigma_t)}, result = {y}\n"
         # print(msg)
 
+        # Predict the outcome, count the hits
+        nCorrect += round(Py_s1s2(mu_1, mu_2, sigma_1, sigma_2, Sigma_t))*2-1 == y
+
         # Bayesian update with y - sample from the posterior
-        S_1, S_2, _ = sample(
-                            y,
-                            mu_1,
-                            mu_2,
-                            sigma_1,
-                            sigma_2,
-                            sigma_t,
+        S_1, S_2, _ = sample(y,
+                            mu_1, mu_2,
+                            sigma_1, sigma_2,
+                            Sigma_t,
                             nSamples)
 
         # Estimate the parameters of the new normal distributions
@@ -150,7 +158,7 @@ def ADF(nPlayers:int, results:np.array,
         history[i,:] = [mu_1, sigma_1, matchNum_1,
                         mu_2, sigma_2, matchNum_2]
         i += 1
-    return playerSkills, history
+    return playerSkills, nCorrect/i
 
 # ADF on pandas dataframe
 def ADFpd(results_df, mu0, sigma0, sigma_t, nSamples, n_burn):
@@ -173,9 +181,9 @@ def ADFpd(results_df, mu0, sigma0, sigma_t, nSamples, n_burn):
                             row["winner"]])
         i+=1
     
-    playerSkills, history = ADF(len(players), results,
+    playerSkills, accuracy = ADF(len(players), results,
                                 mu0, sigma0, sigma_t, nSamples, n_burn)
-    return players, playerSkills, history
+    return players, playerSkills, accuracy
 
 
 
@@ -186,12 +194,22 @@ def rankTeams():
 
     mu0, sigma0 = 25,3
     sigma_t = 1.5
-    players, skills, history = ADFpd(seriesA_df, mu0, sigma0, sigma_t, 20, 5)
+    teams, skills, accuracy = ADFpd(seriesA_df, mu0, sigma0, sigma_t, 50, 5)
 
     idx = np.flip(np.argsort(skills[:,0]))
-    print(tabulate(np.column_stack((players[idx], skills[idx])),
-                    headers=["player", "mu", "sigma", "games"]))
+    skilltable = np.column_stack((np.arange(len(teams)), teams[idx], skills[idx]))
+    print(tabulate(skilltable,
+                    headers=["rank", "team", "mu", "sigma", "games"]))
    
+    print(f"Prediction accuray: {accuracy}")
+
+    # print(tabulate(skilltable,
+    #                 headers=["rank", "team", "mu", "sigma", "games"],
+    #                 floatfmt=".2f",
+    #                 tablefmt="latex_raw"))
+
+
+
     # scores_df = pd.DataFrame(scores)
     # scores_df = scores_df.rename(
     #     {
@@ -221,3 +239,4 @@ def rankTeams():
 rankTeams()
 
 # %%
+
