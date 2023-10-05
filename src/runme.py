@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from tabulate import tabulate
 from gibbs import Py_s1s2, sample, gaussian_approx, createGibbsUpdater
 from adf import ADFdf
+import scipy
+from Moment_matching import *
 
 # %%
 
@@ -87,7 +89,7 @@ def rankTeams():
 
 rankTeams()
 
-# Q.8 
+# Q.8
 def momentMatchingVsGibbs():
     mu0, sigma0 = 25, 25 / 3
     sigma_t = 25 / 6
