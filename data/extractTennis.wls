@@ -18,7 +18,8 @@
 
 
 (* ::Input:: *)
-(*scores=recent[[All,{"winner_name","loser_name","winner_games_won","loser_games_won"}/.header]];*)
+(*cols={"winner_name","loser_name","winner_games_won","loser_games_won"};*)
+(*scores=recent[[All,cols/.header]];*)
 (*scores//Dimensions*)
 
 
@@ -33,4 +34,4 @@
 
 
 (* ::Input:: *)
-(*Export[NotebookDirectory[]<>"tennis.csv",importantGames]*)
+(*Export[NotebookDirectory[]<>"tennis.csv",Prepend[importantGames,cols]]*)

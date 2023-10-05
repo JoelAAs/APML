@@ -3,7 +3,8 @@ import pandas as pd
 
 # Assumed Density Filtering
 def ADF(nPlayers:int, results:np.array,
-        mu0, sigma0, Sigma_t, predict:callable, update:callable):
+        mu0, sigma0, Sigma_t,
+        predict:callable, update:callable):
     
     playerSkills = np.array([[mu0, sigma0, 0]] * nPlayers, dtype=np.float32)
 
@@ -15,8 +16,6 @@ def ADF(nPlayers:int, results:np.array,
        
         # Predict the outcome, count the hits
         nCorrect += predict(mu1, mu2, sigma1, sigma2, Sigma_t)==y
-
-       # print(f"{mu_1} vs {mu_2} -> {predicted} but {y}")
 
         # Bayesian update
         mu1,sigma1, mu2,sigma2 = update(mu1,sigma1, mu2,sigma2, y, Sigma_t)
@@ -31,20 +30,22 @@ def ADF(nPlayers:int, results:np.array,
 
 # ADF on pandas dataframe
 def ADFdf(results_df, mu0, sigma0, Sigma_t,
+          player1Column, player2Column, getWinner:callable,
           predict:callable, update:callable, shuffle:bool):
+    
     # Assign numbers to the players
-    players = pd.concat([results_df['team1'], results_df['team2']]).unique()
+    players = pd.concat([results_df[player1Column], results_df[player2Column]]).unique()
     playerIDs = {players[i]:i for i in range(len(players))}
     
     # Convert to numpy array
     results = np.zeros((results_df.shape[0],3),dtype=np.int32) # p1,p2,result
     nDecisive = 0
     for _, row in results_df.iterrows():
-        y = np.sign(row["score1"] - row["score2"])
+        y = getWinner(row)
         if y == 0:
             continue
-        results[nDecisive,:] = np.array([playerIDs[row["team1"]],
-                                         playerIDs[row["team2"]],
+        results[nDecisive,:] = np.array([playerIDs[row[player1Column]],
+                                         playerIDs[row[player2Column]],
                                          y])
         nDecisive += 1
     

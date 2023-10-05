@@ -54,8 +54,10 @@ singleMatch()
 def predict(mu1, mu2, sigma1, sigma2, Sigma_t):
     return round(Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t))*2-1 
 
+# %%
+
 # Q5, Q6
-def rankTeams():
+def rankFootballTeams():
     # Load dataframe from file
     seriesA_df = pd.read_csv("../data/SerieA.csv", sep=",")
 
@@ -67,7 +69,8 @@ def rankTeams():
 
     # Run ADF on the dataframe rows
     update = createGibbsUpdater(nSamples, nBurn)
-    teams, skills, accuracy = ADFdf(seriesA_df, mu0, sigma0, Sigma_t, 
+    teams, skills, accuracy = ADFdf(seriesA_df, mu0, sigma0, Sigma_t,
+                                    'team1','team2', lambda row : np.sign(row["score1"] - row["score2"]),
                                     predict, update, False)
 
     
@@ -85,20 +88,40 @@ def rankTeams():
                     floatfmt=[".2f",".2f",".2f",".2f",".0f"],
                     tablefmt="latex_raw"))
 
-rankTeams()
-
-# %%
-results_df = pd.read_csv("data/SerieA.csv", sep=",")
-results_df["diff"] = results_df.score1 - results_df.score2
-
-players = pd.concat([results_df['team1'], results_df['team2']]).unique()
-playerIDs = {players[i]:i for i in range(len(players))}
+rankFootballTeams()
 
 # %%
 
-winner = lambda x: 1 if x > 0 else (-1 if x < 0 else 0)
-results_df["winner"] = results_df["diff"].apply(winner)
-results_df = results_df[results_df.winner != 0]
-teamFilter = "Juventus"
-print(results_df[results_df["team1"] == teamFilter]["winner"])
-print(results_df[results_df["team2"] == teamFilter]["winner"])
+# Q9, Q10
+def rankTennisTeams():
+    # Load dataframe from file
+    tennis_df = pd.read_csv("../data/tennis.csv", sep=",")
+
+    # Choose hyper parameters
+    mu0, sigma0 = 25, 25/3
+    Sigma_t = (25/6)**2
+    nSamples = 50
+    nBurn = 5
+
+    # Run ADF on the dataframe rows
+    update = createGibbsUpdater(nSamples, nBurn)
+    teams, skills, accuracy = ADFdf(tennis_df, mu0, sigma0, Sigma_t,
+                                    'winner_name','loser_name', lambda row : 1,
+                                    predict, update, False)
+
+    
+    # Tabulate resulting posteriors
+    idx = np.flip(np.argsort(skills[:,0]))
+    skilltable = np.column_stack((1+np.arange(len(teams)), teams[idx], skills[idx]))
+    print(tabulate(skilltable,
+                    headers=["Rank", "Team", "mu", "sigma", "Games"]))
+   
+    print(f"Prediction accuray: {accuracy}")
+
+
+    print(tabulate(skilltable,
+                    headers=["Rank", "Team", "mu", "sigma", "Games"],
+                    floatfmt=[".2f",".2f",".2f",".2f",".0f"],
+                    tablefmt="latex_raw"))
+
+rankTennisTeams()
