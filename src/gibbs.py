@@ -9,11 +9,11 @@ def Pt_s1s2y(s1, s2, y, Sigma_t):
     mean = s1 - s2
     sigma_t = np.sqrt(Sigma_t)
     if y > 0:
-        lim1 = -mean / Sigma_t
+        lim1 = -mean / sigma_t
         lim2 = np.inf
     else:
         lim1 = -np.inf
-        lim2 = -mean / Sigma_t
+        lim2 = -mean / sigma_t
 
     t_new = truncnorm.rvs(
         a=lim1,
@@ -34,8 +34,8 @@ def Ps1s2_t(t, mu_1, mu_2, sigma_1, sigma_2, Sigma_t):
             A[0] / Sigma_t * t
     )
     s1,s2 = np.random.multivariate_normal(mu_s1s2_t,
-                                      Sigma_s1s2_t,
-                                      1)[0]
+                                         Sigma_s1s2_t,
+                                         1)[0]
     return s1,s2
 
 # P(y=1)

@@ -57,12 +57,12 @@ def predict(mu1, mu2, sigma1, sigma2, Sigma_t):
 # Q5, Q6
 def rankTeams():
     # Load dataframe from file
-    seriesA_df = pd.read_csv("data/SerieA.csv", sep=",")
+    seriesA_df = pd.read_csv("../data/SerieA.csv", sep=",")
 
     # Choose hyper parameters
     mu0, sigma0 = 25, 25/3
     Sigma_t = (25/6)**2
-    nSamples = 200
+    nSamples = 500
     nBurn = 5
 
     # Run ADF on the dataframe rows
