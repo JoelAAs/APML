@@ -4,74 +4,96 @@ Created on Wed Oct  4 15:55:55 2023
 
 @author: mohko200
 """
-
+import math
 import numpy as np
+import scipy.stats
 from scipy.stats import truncnorm
-
-def mutiplyGauss(m1, s1, m2, s2):
-    s = 1/(1/s1+1/s2)
-    m = (m1/s1+m2/s2)*s
-    return m, s
+import matplotlib.pyplot as plt
 
 
-def divideGauss(m1, s1, m2, s2):
-    m, s = mutiplyGauss(m1, s1, m2, -s2)
-    return m, s
-
-def truncGaussMM(a, b, m0, s0):
-    a_scaled , b_scaled = (a - m0) / np.sqrt(s0), (b - m0) / np.sqrt(s0)
-    m = truncnorm.mean(a_scaled , b_scaled , loc=m0, scale=np.sqrt(s0))
-    s = truncnorm.var(a_scaled , b_scaled , loc=m0, scale=np.sqrt(s0))
-    return m, s
-
-
-
-m1 = 25 # The mean of the prior s1
-s1 = 3 # The variance of the prior s1
-m2 = 25 # The mean of the prior s2
-s2 = 3 # The variance of the prior s1
-sv = 1.5 # The variance of p(t|x)
-y0 = 1 # The measurement
-
-
-
-mu2_m = m1 # mean of message
-mu2_s = s1 # variance of message
-
-mu4_m = m2 # mean of message
-mu4_s = s2 # variance of message
-
-
-for j in range(0, 10):
-    mu5_m = (mu2_m * mu4_s**2 + mu4_m * mu2_s**2) / (mu4_s**2 + mu2_s**2)
-    mu5_s = sv**2 + (mu2_s**2 * mu4_s**2) / (mu2_s**2 + mu4_s**2)
-    
-    
-    
-    if y0 == 1:
-        a, b = 0, np.Inf
+def pt_y(mu, sigma, y):
+    if y == 1:
+        a = 0
+        b = np.inf
+    elif y == -1:
+        a = -np.inf
+        b = 0
     else:
-        a, b = np.NINF , 0
-    
-    pt_m , pt_s = truncGaussMM(a, b, mu5_m , mu5_s)
-    
-    
-    
-    mu8_m , mu8_s = divideGauss(pt_m , pt_s , mu5_m , mu5_s)
-    
-    
-    
-    mu9_m = mu8_m
-    mu9_s = mu8_s + sv
-    
-    mu10_m = mu8_m
-    mu10_s = mu8_s + sv
-    
-    
-    px_m , px_s = mutiplyGauss(mu2_m , mu2_s , mu9_m , mu9_s)
-    px_m , px_s = mutiplyGauss(mu4_m , mu4_s , mu10_m , mu10_s)
-
-print(px_m)
-print(px_s)
+        raise ValueError(f"Illegal value of y:{y}")
+    return scipy.stats.truncnorm(
+        a=a,
+        b=b,
+        loc=mu,
+        scale=sigma
+    )
 
 
+def gaussianMultiplication(m1, s1, m2, s2):
+    v1 = s1 ** 2
+    v2 = s2 ** 2
+    v = 1 / (1 / v1 + 1 / v2)
+    m = (m1 / v1 + m2 / v2) * v
+    return m, math.sqrt(v)
+
+
+def gaussianDivision(m1, s1, m2, s2):
+    v1 = s1 ** 2
+    v2 = s2 ** 2
+    m = (m1 * v2 - m2 * v1) / (v2 - v1)
+    v = v1 * v2 / (v2 - v1)
+    return m, math.sqrt(v)
+
+
+def approx_q(mu_c2t, sigma_c2t, y):
+    trunc_q = pt_y(mu_c2t, sigma_c2t, y)
+    mu_q = trunc_q.mean()
+    sigma_q = math.sqrt(trunc_q.var())
+    return mu_q, sigma_q, trunc_q
+
+
+def step_t2c(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y):
+    mu_c2t = mu_1 - mu_2
+    sigma_c2t = math.sqrt(sigma_1 ** 2 + sigma_2 ** 2 + sigma_t ** 2)
+    mu_q, sigma_q, trunc_q = approx_q(mu_c2t, sigma_c2t, y)
+    mu_t2c, sigma_t2c = gaussianDivision(mu_q, sigma_q, mu_c2t, sigma_c2t)
+
+    return mu_t2c, sigma_t2c, trunc_q
+
+
+def ps1_y(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y):
+    mu_t2c, sigma_t2c, _ = step_t2c(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y)
+    mu_c2s1 = mu_t2c + mu_2
+    sigma_c2s1 = math.sqrt(sigma_t ** 2 + sigma_2 ** 2 + sigma_t2c ** 2)
+    mu_s1y, sigma_s1y = gaussianMultiplication(mu_c2s1, sigma_c2s1, mu_1, sigma_1)
+    return mu_s1y, sigma_s1y
+
+
+def ps2_y(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y):
+    mu_t2c, sigma_t2c, _ = step_t2c(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y)
+    mu_c2s2 = mu_1 - mu_t2c
+    sigma_c2s2 = math.sqrt(sigma_t ** 2 + sigma_1 ** 2 + sigma_t2c ** 2)
+    mu_s2y, sigma_s2y = gaussianMultiplication(mu_c2s2, sigma_c2s2, mu_1, sigma_1)
+    return mu_s2y, sigma_s2y
+
+
+
+
+
+
+mu_1 = 25  # The mean of the prior s1
+sigma_1 = 3  # The variance of the prior s1
+mu_2 = 25  # The mean of the prior s2
+sigma_2 = 3  # The variance of the prior s1
+sigma_t = 1.5  # The variance of p(t|y)
+y = 1  # The measurement
+
+mu_t2c, sigma_t2c, trunc_q = step_t2c(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y)
+mu_s1y, sigma_s1y = ps1_y(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y)
+mu_s2y, sigma_s2y = ps2_y(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y)
+x = np.linspace(-5, 40, 1000)
+plt.plot(x, scipy.stats.norm(mu_t2c, sigma_t2c).pdf(x), color="r")
+plt.plot(x, trunc_q.pdf(x), color="b")
+plt.plot(x, scipy.stats.norm(mu_s1y, sigma_s1y).pdf(x), color="g")
+plt.plot(x, scipy.stats.norm(mu_s2y, sigma_s2y).pdf(x), color="y")
+
+plt.show()
