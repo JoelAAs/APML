@@ -177,8 +177,8 @@ def ADFpd(results_df, mu0, sigma0, sigma_t, nSamples, n_burn):
     i = 0
     for _, row in results_df.iterrows():
         results[i,:] = np.array([playerIDs[row["team1"]],
-                            playerIDs[row["team2"]],
-                            row["winner"]])
+                                 playerIDs[row["team2"]],
+                                 row["winner"]])
         i+=1
     
     playerSkills, accuracy = ADF(len(players), results,
@@ -192,14 +192,20 @@ def rankTeams():
     # Load dataframe from file
     seriesA_df = pd.read_csv("data/SerieA.csv", sep=",")
 
+    # Chose hyper parameters
     mu0, sigma0 = 25,3
-    sigma_t = 1.5
-    teams, skills, accuracy = ADFpd(seriesA_df, mu0, sigma0, sigma_t, 50, 5)
+    Sigma_t = 1.5
+    nSamples = 50
+    nBurn = 5 
 
+    # Run ADF on the dataframe rows
+    teams, skills, accuracy = ADFpd(seriesA_df, mu0, sigma0, Sigma_t, nSamples, nBurn)
+
+    # Tabulate resulting posteriors
     idx = np.flip(np.argsort(skills[:,0]))
     skilltable = np.column_stack((np.arange(len(teams)), teams[idx], skills[idx]))
     print(tabulate(skilltable,
-                    headers=["rank", "team", "mu", "sigma", "games"]))
+                    headers=["Rank", "Team", "mu", "sigma", "Games"]))
    
     print(f"Prediction accuray: {accuracy}")
 
@@ -208,33 +214,6 @@ def rankTeams():
     #                 floatfmt=".2f",
     #                 tablefmt="latex_raw"))
 
-
-
-    # scores_df = pd.DataFrame(scores)
-    # scores_df = scores_df.rename(
-    #     {
-    #         0: "mu1",
-    #         1: "sigma_1",
-    #         2: "matchN1",
-    #         3: "mu2",
-    #         4: "sigma_2",
-    #         5: "matchN2"
-    #     }, axis=1)
-
-    # series_A_scored = pd.concat([seriesA_df.reset_index(drop=True),
-    #                              scores_df], axis=1)
-
-    # part1 = series_A_scored[["team1", "mu1", "sigma_1", "matchN1"]]
-    # part1 = part1.rename({
-    #     "team1": "team", "mu1": "mu", "sigma_1": "sigma", "matchN1": "matchN"
-    # }, axis=1)
-    # part2 = series_A_scored[["team2", "mu2", "sigma_2", "matchN2"]]
-    # part2 = part2.rename({
-    #     "team2": "team", "mu2": "mu", "sigma_2": "sigma", "matchN2": "matchN"
-    # }, axis=1)
-
-    # matched_results = pd.concat([part1, part2])
-    # matched_results.to_csv("test.csv")
 
 rankTeams()
 
