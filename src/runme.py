@@ -87,6 +87,33 @@ def rankTeams():
 
 rankTeams()
 
+# Q.8 
+def momentMatchingVsGibbs():
+    mu0, sigma0 = 25, 25 / 3
+    sigma_t = 25 / 6
+    y = 1
+    N_samples = 1000
+
+    # Gibbs
+    S_1, S_2, _ = sample(y, mu0, mu0, sigma0, sigma0, sigma_t, N_samples)
+
+    # Moment matching
+    mu1mm, s1mm = ps1_y(mu0, sigma0, mu0, sigma0, sigma_t, y)
+    mu2mm, s2mm = ps2_y(mu0, sigma0, mu0, sigma0, sigma_t, y)
+
+    bins = int(np.sqrt(N_samples))
+    x = np.linspace(0, 50, 200)
+    plt.hist(S_1, bins=bins, color="darkred", density=True)
+    plt.plot(x, scipy.stats.norm(mu1mm, s1mm).pdf(x), "r")
+    plt.hist(S_2, bins=bins, color="darkgreen", density=True)
+    plt.plot(x, scipy.stats.norm(mu2mm, s2mm).pdf(x), "g")
+    plt.legend(["P(S1|y) MM",  "P(S2|y) MM", "P(S1|y) gibbs", "P(S2|y) gibbs"])
+    plt.title("Moment Matching vs Gibbs sampling of S posterior")
+    plt.show()
+
+momentMatchingVsGibbs()
+
+
 # %%
 results_df = pd.read_csv("data/SerieA.csv", sep=",")
 results_df["diff"] = results_df.score1 - results_df.score2
