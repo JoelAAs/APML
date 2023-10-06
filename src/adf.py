@@ -10,8 +10,6 @@ def ADF(nPlayers:int, results:np.array,
     playerSkills = np.array([[mu0, sigma0, 0, -1]] * nPlayers, dtype=np.float32)
     history = [[]]*nPlayers
 
-    print(history)
-
     i,nCorrect = 0,0
     for row in results:
         time, p1, p2, y = row
@@ -59,7 +57,7 @@ def ADFdf(results_df, mu0, sigma0, Sigma_t,
         y = getWinner(row)
         if y == 0 and not consider_draw:
             continue
-        results[nDecisive,:] = np.array([row[timeColumn],
+        results[nDecisive,:] = np.array([0 if timeColumn=="" else row[timeColumn],
                                          playerIDs[row[player1Column]],
                                          playerIDs[row[player2Column]],
                                          y])
