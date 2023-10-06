@@ -13,7 +13,9 @@ def ADF(nPlayers:int, results:np.array,
         p1, p2, y = row
         mu1, sigma1, nMatches1 = playerSkills[p1]
         mu2, sigma2, nMatches2 = playerSkills[p2]
-       
+
+        pred = predict(mu1, mu2, sigma1, sigma2, Sigma_t) == y
+        print(f"pred {pred}, true {y}")
         # Predict the outcome, count the hits
         nCorrect += predict(mu1, mu2, sigma1, sigma2, Sigma_t)==y
 
@@ -21,7 +23,7 @@ def ADF(nPlayers:int, results:np.array,
         mu1,sigma1, mu2,sigma2 = update(mu1,sigma1, mu2,sigma2, y, Sigma_t)
         playerSkills[p1,:] = [mu1, sigma1, nMatches1+1]
         playerSkills[p2,:] = [mu2, sigma2, nMatches2+1]
-        
+
         i += 1
         if i%10 == 0:
             print(f"Finished {i}/{len(results)}")
@@ -31,7 +33,7 @@ def ADF(nPlayers:int, results:np.array,
 # ADF on pandas dataframe
 def ADFdf(results_df, mu0, sigma0, Sigma_t,
           player1Column, player2Column, getWinner:callable,
-          predict:callable, update:callable, shuffle:bool):
+          predict:callable, update:callable, shuffle:bool, consider_draw=F):
     
     # Assign numbers to the players
     players = pd.concat([results_df[player1Column], results_df[player2Column]]).unique()
@@ -42,7 +44,7 @@ def ADFdf(results_df, mu0, sigma0, Sigma_t,
     nDecisive = 0
     for _, row in results_df.iterrows():
         y = getWinner(row)
-        if y == 0:
+        if y == 0 and not consider_draw:
             continue
         results[nDecisive,:] = np.array([playerIDs[row[player1Column]],
                                          playerIDs[row[player2Column]],
