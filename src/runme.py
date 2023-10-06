@@ -152,9 +152,6 @@ def rankFootballTeamsDraw():
                                    '','team1', 'team2', lambda row: np.sign(row["score1"] - row["score2"]),
                                    predict_draws, update, False, consider_draw=True)
 
-    print(f"Prediction accuray without draws: {accuracy}")
-    print(f"Prediction accuray with draws: {accuracy_draw}")
-
     # -------------------------
     # Tabulate resulting posteriors
     idx = np.flip(np.argsort(skills[:,0]))
@@ -164,13 +161,20 @@ def rankFootballTeamsDraw():
                     floatfmt=[".2f",".2f",".2f",".2f",".0f"],
                     tablefmt="latex_raw"))
 
+    print(f"Prediction accuray without draws: {accuracy}")
+    print(f"Prediction accuray with draws: {accuracy_draw}")
+
+
 rankFootballTeamsDraw()
+
+
 
 # %%
 
 
 # # Q.9, Q.10
 def trackTennisPlayers():
+
     # Load dataframe from file
     tennis_df = pd.read_csv("../data/tennis2.csv", sep=",")
 
@@ -178,7 +182,7 @@ def trackTennisPlayers():
     mu0, sigma0 = 25, 25/3
     Sigma_t = (25/6)**2
 
-    # Run ADF on the dataframe rows
+    # Choose update method
     update = createGibbsUpdater(nSamples=50, nBurn=5)
     update = createMomentMatching()
 
@@ -186,28 +190,39 @@ def trackTennisPlayers():
     def predict(mu1, mu2, sigma1, sigma2, Sigma_t):
         return round(Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t))*2-1 
 
-    decayRate = 1/100
+    decayRate = 1/365
     def decay(sigma,dt):
-        dt = np.abs(dt)*decayRate
+        dt = dt*decayRate
         sigma = sigma0 + (sigma-sigma0)*np.exp(-dt)
         return sigma
-    
-    teams, skills, accuracy, history = ADFdf(tennis_df, mu0, sigma0, Sigma_t,
-                                    'tourney_year_id','winner_name','loser_name', lambda row : 1,
+
+    players, skills, accuracy, history = ADFdf(tennis_df, mu0, sigma0, Sigma_t,
+                                    'day','winner_name','loser_name', lambda row : 1,
                                     predict, update, False, False, decay)
 
-    
-    # Tabulate resulting posteriors
+
+
     idx = np.flip(np.argsort(skills[:,0]))
-    skilltable = np.column_stack((1+np.arange(len(teams)), teams[idx], skills[idx]))
+    skilltable = np.column_stack((1+np.arange(len(players)), players[idx], skills[idx]))
     skilltable = skilltable[:20]
-   
+
     print(tabulate(skilltable,
                     headers=["Rank", "Team", "mu", "sigma", "Games"],
                     floatfmt=[".2f",".2f",".2f",".2f",".0f"],
                     tablefmt="latex_raw"))
     print(f"Prediction accuray: {accuracy}")
 
-
+    # Draw history of skill
+    for i in idx[:5]:
+        xs = history[i][:,0]
+        ys = history[i][:,1]
+        errs = history[i][:,2]*1.96 # 95% confidence
+        plt.plot(xs,ys,label=players[i])
+        plt.fill_between(xs, ys-errs, ys+errs, alpha=0.5)
+        plt.legend()
+                    
 trackTennisPlayers()
 
+
+ 
+# %%
