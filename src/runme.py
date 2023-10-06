@@ -61,9 +61,8 @@ def predict_draws(mu1, mu2, sigma1, sigma2, Sigma_t):
     mu = mu1-mu2
     sigma = np.sqrt(sigma1**2 + sigma2**2 + Sigma_t)
 
-    values = [py(mu, sigma, y) for y in range(-1,2)]
-    print(values)
-    predicted_value = max(range(-1,2), key=values.__getitem__)
+    values = [py(mu, sigma, y) for y in range(-1, 2)]
+    predicted_value = np.argmax(values) - 1
     return predicted_value
 
 # %%
