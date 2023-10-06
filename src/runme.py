@@ -56,6 +56,15 @@ singleMatch()
 def predict(mu1, mu2, sigma1, sigma2, Sigma_t):
     return round(Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t))*2-1 
 
+
+def predict_draws(mu1, mu2, sigma1, sigma2, Sigma_t):
+    mu = mu1-mu2
+    sigma = np.sqrt(sigma1**2 + sigma2**2 + Sigma_t)
+
+    values = [py(mu, sigma, y) for y in range(-1,2)]
+    predicted_value = min(range(-1,2), key=values.__getitem__())
+    return predicted_value
+
 # %%
 
 # Q.5, Q.6
@@ -81,8 +90,16 @@ def rankFootballTeams():
     skilltable = np.column_stack((1+np.arange(len(teams)), teams[idx], skills[idx]))
     print(tabulate(skilltable,
                     headers=["Rank", "Team", "mu", "sigma", "Games"]))
-   
+
+
+    update = createMomentMatching()
+    _, _, accuracy_draw = ADFdf(seriesA_df, mu0, sigma0, Sigma_t,
+                                    'winner_name','loser_name', lambda row : 1,
+                                    predict_draws, update, False, consider_draw=True)
+
+
     print(f"Prediction accuray: {accuracy}")
+    print(f"Prediction accuray: {accuracy_draw}")
 
 
     print(tabulate(skilltable,
@@ -138,7 +155,6 @@ def rankTennisTeams():
                                     'winner_name','loser_name', lambda row : 1,
                                     predict, update, False)
 
-    
     # Tabulate resulting posteriors
     idx = np.flip(np.argsort(skills[:,0]))
     skilltable = np.column_stack((1+np.arange(len(teams)), teams[idx], skills[idx]))
