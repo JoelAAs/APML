@@ -50,16 +50,6 @@ def singleMatch():
 
 singleMatch()
 
-
-
-def predict_draws(mu1, mu2, sigma1, sigma2, Sigma_t):
-    mu = mu1-mu2
-    sigma = np.sqrt(sigma1**2 + sigma2**2 + Sigma_t)
-
-    values = [py(mu, sigma, y) for y in range(-1, 2)]
-    predicted_value = np.argmax(values) - 1
-    return predicted_value
-
 # %%
 
 # Q.5, Q.6
@@ -70,13 +60,18 @@ def rankFootballTeams():
     # Choose hyper parameters
     mu0, sigma0 = 25, 25/3
     Sigma_t = (25/6)**2
-    nSamples = 500
+    nSamples = 100
     nBurn = 5
 
     # Run ADF on the dataframe rows
     update = createGibbsUpdater(nSamples, nBurn)
-    teams, skills, accuracy = ADFdf(seriesA_df, mu0, sigma0, Sigma_t,
-                                    'team1','team2', lambda row : np.sign(row["score1"] - row["score2"]),
+
+     # Predicts y
+    def predict(mu1, mu2, sigma1, sigma2, Sigma_t):
+        return round(Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t))*2-1 
+    
+    teams, skills, accuracy, _ = ADFdf(seriesA_df, mu0, sigma0, Sigma_t,
+                                    '','team1','team2', lambda row : np.sign(row["score1"] - row["score2"]),
                                     predict, update, False)
 
     
@@ -85,23 +80,11 @@ def rankFootballTeams():
     skilltable = np.column_stack((1+np.arange(len(teams)), teams[idx], skills[idx]))
     print(tabulate(skilltable,
                     headers=["Rank", "Team", "mu", "sigma", "Games"]))
-
-
-    update = createMomentMatching()
-    _, _, accuracy_draw = ADFdf(seriesA_df, mu0, sigma0, Sigma_t,
-                                    'team1', 'team2', lambda row: np.sign(row["score1"] - row["score2"]),
-                                    predict_draws, update, False, consider_draw=True)
-
     print(f"Prediction accuray: {accuracy}")
-    print(f"Prediction accuray: {accuracy_draw}")
-
-
-    print(tabulate(skilltable,
-                    headers=["Rank", "Team", "mu", "sigma", "Games"],
-                    floatfmt=[".2f",".2f",".2f",".2f",".0f"],
-                    tablefmt="latex_raw"))
 
 rankFootballTeams()
+
+# %%
 
 
 # Q.8
@@ -131,6 +114,60 @@ def momentMatchingVsGibbs():
 momentMatchingVsGibbs()
 
 # %%
+
+# Q.10
+def rankFootballTeamsDraw():
+    # Load dataframe from file
+    seriesA_df = pd.read_csv("../data/SerieA.csv", sep=",")
+
+    # Choose hyper parameters
+    mu0, sigma0 = 25, 25/3
+    Sigma_t = (25/6)**2
+    
+    # -------------------------
+    # Without draws
+    update = createMomentMatching()
+
+    def predict(mu1, mu2, sigma1, sigma2, Sigma_t):
+        return round(Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t))*2-1 
+    
+    _, _, accuracy, _ = ADFdf(seriesA_df, mu0, sigma0, Sigma_t,
+                              '','team1','team2', lambda row : np.sign(row["score1"] - row["score2"]),
+                              predict, update, False)
+
+    
+    # -------------------------
+    # With draws
+    update = createMomentMatching()
+
+    def predict_draws(mu1, mu2, sigma1, sigma2, Sigma_t):
+        mu = mu1-mu2
+        sigma = np.sqrt(sigma1**2 + sigma2**2 + Sigma_t)
+
+        values = [py(mu, sigma, y) for y in range(-1, 2)]
+        predicted_value = np.argmax(values) - 1
+        return predicted_value
+
+    teams, skills, accuracy_draw, _ = ADFdf(seriesA_df, mu0, sigma0, Sigma_t,
+                                   '','team1', 'team2', lambda row: np.sign(row["score1"] - row["score2"]),
+                                   predict_draws, update, False, consider_draw=True)
+
+    print(f"Prediction accuray without draws: {accuracy}")
+    print(f"Prediction accuray with draws: {accuracy_draw}")
+
+    # -------------------------
+    # Tabulate resulting posteriors
+    idx = np.flip(np.argsort(skills[:,0]))
+    skilltable = np.column_stack((1+np.arange(len(teams)), teams[idx], skills[idx]))
+    print(tabulate(skilltable,
+                    headers=["Rank", "Team", "mu", "sigma", "Games"],
+                    floatfmt=[".2f",".2f",".2f",".2f",".0f"],
+                    tablefmt="latex_raw"))
+
+rankFootballTeamsDraw()
+
+# %%
+
 
 # # Q.9, Q.10
 def trackTennisPlayers():
@@ -173,3 +210,4 @@ def trackTennisPlayers():
 
 
 trackTennisPlayers()
+
