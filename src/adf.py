@@ -8,6 +8,9 @@ def ADF(nPlayers:int, results:np.array,
         decay:callable = None):
     
     playerSkills = np.array([[mu0, sigma0, 0, -1]] * nPlayers, dtype=np.float32)
+    history = [[]]*nPlayers
+
+    print(history)
 
     i,nCorrect = 0,0
     for row in results:
@@ -30,11 +33,14 @@ def ADF(nPlayers:int, results:np.array,
         playerSkills[p1,:] = [mu1, sigma1, nMatches1+1, time]
         playerSkills[p2,:] = [mu2, sigma2, nMatches2+1, time]
         
+        history[p1].append([time, mu1, sigma1])
+        history[p2].append([time, mu2, sigma2])
+
         i += 1
         if i%10 == 0:
             print(f"Finished {i}/{len(results)}")
 
-    return playerSkills, nCorrect/i
+    return playerSkills, nCorrect/i, np.array(history)
 
 # ADF on pandas dataframe
 def ADFdf(results_df, mu0, sigma0, Sigma_t,
@@ -63,6 +69,6 @@ def ADFdf(results_df, mu0, sigma0, Sigma_t,
     if shuffle:
         np.random.shuffle(results)
 
-    playerSkills, accuracy = ADF(len(players), results,
+    playerSkills, accuracy, history = ADF(len(players), results,
                                  mu0, sigma0, Sigma_t, predict, update, decay)
-    return players, playerSkills, accuracy
+    return players, playerSkills, accuracy, history

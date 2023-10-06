@@ -132,43 +132,7 @@ momentMatchingVsGibbs()
 
 # %%
 
-# Q.9
-def rankTennisPlayers():
-    # Load dataframe from file
-    tennis_df = pd.read_csv("../data/tennis.csv", sep=",")
-
-    # Choose hyper parameters
-    mu0, sigma0 = 25, 25/3
-    Sigma_t = (25/6)**2
-    nSamples = 50
-    nBurn = 5
-
-    # Run ADF on the dataframe rows
-    update = createMomentMatching()
-    teams, skills, accuracy = ADFdf(tennis_df, mu0, sigma0, Sigma_t,
-                                    'winner_name','loser_name', lambda row : 1,
-                                    predict, update, False)
-
-    # Tabulate resulting posteriors
-    idx = np.flip(np.argsort(skills[:,0]))
-    skilltable = np.column_stack((1+np.arange(len(teams)), teams[idx], skills[idx]))
-    print(tabulate(skilltable,
-                    headers=["Rank", "Team", "mu", "sigma", "Games"]))
-   
-    print(f"Prediction accuray: {accuracy}")
-
-
-    print(tabulate(skilltable,
-                    headers=["Rank", "Team", "mu", "sigma", "Games"],
-                    floatfmt=[".2f",".2f",".2f",".2f",".0f"],
-                    tablefmt="latex_raw"))
-
-rankTennisPlayers()
-
-
-# %%
-
-# Q.10
+# # Q.9, Q.10
 def trackTennisPlayers():
     # Load dataframe from file
     tennis_df = pd.read_csv("../data/tennis2.csv", sep=",")
@@ -176,14 +140,11 @@ def trackTennisPlayers():
     # Choose hyper parameters
     mu0, sigma0 = 25, 25/3
     Sigma_t = (25/6)**2
-    nSamples = 50
-    nBurn = 5
-
 
     # Run ADF on the dataframe rows
-    update = createGibbsUpdater(nSamples, nBurn)
+    update = createGibbsUpdater(nSamples=50, nBurn=5)
     update = createMomentMatching()
-    
+
     # Predicts y
     def predict(mu1, mu2, sigma1, sigma2, Sigma_t):
         return round(Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t))*2-1 
@@ -194,7 +155,7 @@ def trackTennisPlayers():
         sigma = sigma0 + (sigma-sigma0)*np.exp(-dt)
         return sigma
     
-    teams, skills, accuracy = ADFdf(tennis_df, mu0, sigma0, Sigma_t,
+    teams, skills, accuracy, history = ADFdf(tennis_df, mu0, sigma0, Sigma_t,
                                     'tourney_year_id','winner_name','loser_name', lambda row : 1,
                                     predict, update, False, False, decay)
 
