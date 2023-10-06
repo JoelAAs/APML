@@ -15,7 +15,6 @@ def ADF(nPlayers:int, results:np.array,
         mu2, sigma2, nMatches2 = playerSkills[p2]
 
         pred = predict(mu1, mu2, sigma1, sigma2, Sigma_t) == y
-        print(f"pred {pred}, true {y}")
         # Predict the outcome, count the hits
         nCorrect += predict(mu1, mu2, sigma1, sigma2, Sigma_t)==y
 
