@@ -33,7 +33,7 @@ def singleMatch():
     # Q4.3
     s1_approx, _, _ = gaussian_approx(S_1[n_burn:])
     s2_approx, _, _ = gaussian_approx(S_2[n_burn:])
-
+    
     x = np.linspace(0, 40, 200)
     p_s1 = s1_approx.pdf(x)
     p_s2 = s2_approx.pdf(x)
@@ -54,15 +54,8 @@ singleMatch()
 
 # Predicts y
 def predict(mu1, mu2, sigma1, sigma2, Sigma_t):
-    return round(Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t))*2-1
+    return round(Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t))*2-1 
 
-def predict_draw(mu1, mu2, sigma1, sigma2, Sigma_t):
-    mu = mu1 - mu2
-    sigma = np.sqrt(sigma1**2 + sigma2**2 + Sigma_t)
-    values = [py(mu, sigma, y) for y in range(-1,2)]
-    print(values)
-    predicted_score = max(range(len(values)), key=values.__getitem__) - 1
-    return predicted_score
 # %%
 
 # Q.5, Q.6
@@ -78,25 +71,18 @@ def rankFootballTeams():
 
     # Run ADF on the dataframe rows
     update = createGibbsUpdater(nSamples, nBurn)
-    teams, skills, accuracy = ADFdf(
-        seriesA_df, mu0, sigma0, Sigma_t,
-        'team1','team2', lambda row : np.sign(row["score1"] - row["score2"]),
-        predict, update, False)
+    teams, skills, accuracy = ADFdf(seriesA_df, mu0, sigma0, Sigma_t,
+                                    'team1','team2', lambda row : np.sign(row["score1"] - row["score2"]),
+                                    predict, update, False)
 
-    update = createMomentMatching()
-    _, _, accuracy_draw = ADFdf(
-        seriesA_df, mu0, sigma0, Sigma_t,
-        'team1', 'team2', lambda row: np.sign(row["score1"] - row["score2"]),
-        predict_draw, update, False, consider_draw=True)
-
+    
     # Tabulate resulting posteriors
     idx = np.flip(np.argsort(skills[:,0]))
     skilltable = np.column_stack((1+np.arange(len(teams)), teams[idx], skills[idx]))
     print(tabulate(skilltable,
                     headers=["Rank", "Team", "mu", "sigma", "Games"]))
-
+   
     print(f"Prediction accuray: {accuracy}")
-    print(f"Prediction accuray considering draws: {accuracy_draw}")
 
 
     print(tabulate(skilltable,
@@ -152,13 +138,13 @@ def rankTennisTeams():
                                     'winner_name','loser_name', lambda row : 1,
                                     predict, update, False)
 
-
+    
     # Tabulate resulting posteriors
     idx = np.flip(np.argsort(skills[:,0]))
     skilltable = np.column_stack((1+np.arange(len(teams)), teams[idx], skills[idx]))
     print(tabulate(skilltable,
                     headers=["Rank", "Team", "mu", "sigma", "Games"]))
-
+   
     print(f"Prediction accuray: {accuracy}")
 
 
