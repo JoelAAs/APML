@@ -62,7 +62,8 @@ def predict_draws(mu1, mu2, sigma1, sigma2, Sigma_t):
     sigma = np.sqrt(sigma1**2 + sigma2**2 + Sigma_t)
 
     values = [py(mu, sigma, y) for y in range(-1,2)]
-    predicted_value = min(range(-1,2), key=values.__getitem__())
+    print(values)
+    predicted_value = max(range(-1,2), key=values.__getitem__)
     return predicted_value
 
 # %%
@@ -96,7 +97,7 @@ def rankFootballTeams():
     _, _, accuracy_draw = ADFdf(seriesA_df, mu0, sigma0, Sigma_t,
                                     'team1', 'team2', lambda row: np.sign(row["score1"] - row["score2"]),
                                     predict_draws, update, False, consider_draw=True)
-    
+
     print(f"Prediction accuray: {accuracy}")
     print(f"Prediction accuray: {accuracy_draw}")
 
