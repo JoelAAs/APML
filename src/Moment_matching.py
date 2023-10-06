@@ -9,14 +9,32 @@ import scipy.stats
 from scipy.stats import truncnorm
 import matplotlib.pyplot as plt
 
-
-def pt_y(mu, sigma, y):
+def py(mu, sigma, y):
+    t_norm = scipy.stats.norm(loc=mu, scale=sigma)
     if y == 1:
-        a = 0
+        a = 1
         b = np.inf
     elif y == -1:
         a = -np.inf
-        b = 0
+        b = -1
+    elif y == 0:
+        a = -1
+        b = 1
+    else:
+        raise ValueError(f"Illegal value of y:{y}")
+
+    return t_norm.cdf(b) - t_norm.cdf(a)
+
+def pt_y(mu, sigma, y):
+    if y == 1:
+        a = 1
+        b = np.inf
+    elif y == -1:
+        a = -np.inf
+        b = -1
+    elif y == 0:
+        a = -1
+        b = 1
     else:
         raise ValueError(f"Illegal value of y:{y}")
     return scipy.stats.truncnorm(
@@ -83,16 +101,8 @@ def ps2_y(mu_1, sigma_1, mu_2, sigma_2, sigma_t, y):
 def createMomentMatching():
     def updateMomentMatching(mu1, sigma1, mu2, sigma2, y, Sigma_t):
         sigma_t = np.sqrt(Sigma_t)
-        msg = (f"Starting y = {y}:\n"
-               f"Player1: mu:{mu1} sigma: {sigma1}\n"
-               f"Player2: mu:{mu2} sigma: {sigma2}\n"
-               f"=====================================")
         mu1n, sigma1n = ps1_y(mu1, sigma1, mu2, sigma2, sigma_t, y)
         mu2n, sigma2n = ps2_y(mu1, sigma1, mu2, sigma2, sigma_t, y)
-        msg += (f"\nRESULTS:\n"
-                f"Player1: mu:{mu1n} sigma: {sigma1n}\n"
-                f"Player2: mu:{mu2n} sigma: {sigma2n}\n")
-        print(msg)
         return mu1n, sigma1n, mu2n, sigma2n
 
     return updateMomentMatching
@@ -102,8 +112,6 @@ def test():
     mu0, sigma0 = 25, 25 / 3
     sigma_t = 25 / 6
     y = -1
-    mu1, s1 = ps1_y(mu0, sigma0, mu0, sigma0, sigma_t, y)
-    mu2, s2 = ps2_y(mu0, sigma0, mu0, sigma0, sigma_t, y)
 
     x = np.linspace(0, 40, 200)
     plt.plot(x, scipy.stats.norm(mu1, s1).pdf(x), "r")
