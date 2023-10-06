@@ -1,66 +1,72 @@
 import numpy as np
 import pandas as pd
-from gibbs import Py_s1s2, sample, gaussian_approx
-
 
 # Assumed Density Filtering
 def ADF(nPlayers:int, results:np.array,
-        mu0, sigma0, Sigma_t, nSamples, nBurn):
+        mu0, sigma0, Sigma_t,
+        predict:callable, update:callable,
+        decay:callable = None):
     
-    playerSkills = np.array([[mu0, sigma0, 0]] * nPlayers, dtype=np.float32)
+    playerSkills = np.array([[mu0, sigma0, 0, -1]] * nPlayers, dtype=np.float32)
+    history = [[]]*nPlayers
 
     i,nCorrect = 0,0
     for row in results:
-        p1, p2, y = row
-        mu1, sigma1, nMatches1 = playerSkills[p1]
-        mu2, sigma2, nMatches2 = playerSkills[p2]
+        time, p1, p2, y = row
+        mu1, sigma1, nMatches1, last1 = playerSkills[p1]
+        mu2, sigma2, nMatches2, last2 = playerSkills[p2]
        
         # Predict the outcome, count the hits
-        predicted = Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t)
-        nCorrect += round(predicted)*2-1 == y
+        nCorrect += predict(mu1, mu2, sigma1, sigma2, Sigma_t)==y
 
-       # print(f"{mu_1} vs {mu_2} -> {predicted} but {y}")
+        # Increate the standard deviation based on the time since their last game
+        if decay != None:
+            if last1 != -1:
+                sigma1 = decay(sigma1,time-last1)
+            if last2 != -1:
+                sigma2 = decay(sigma2,time-last2)
+        
+        # Bayesian update
+        mu1,sigma1, mu2,sigma2 = update(mu1,sigma1, mu2,sigma2, y, Sigma_t)
+        playerSkills[p1,:] = [mu1, sigma1, nMatches1+1, time]
+        playerSkills[p2,:] = [mu2, sigma2, nMatches2+1, time]
+        
+        history[p1].append([time, mu1, sigma1])
+        history[p2].append([time, mu2, sigma2])
 
-        # Bayesian update - sample from the posterior
-        s1s, s2s, _ = sample(y,
-                            mu1, mu2,
-                            sigma1, sigma2,
-                            Sigma_t,
-                            nSamples)
-
-        # if 
-        # print(f"")
-
-        # Estimate the parameters of the new normal distributions
-        _, mu1, sigma1 = gaussian_approx(s1s[nBurn:])
-        _, mu2, sigma2 = gaussian_approx(s2s[nBurn:])
-
-        # Update
-        playerSkills[p1,:] = [mu1, sigma1, nMatches1+1]
-        playerSkills[p2,:] = [mu2, sigma2, nMatches2+1]
         i += 1
-        print(f"Done {i}/{len(results)}")
+        if i%10 == 0:
+            print(f"Finished {i}/{len(results)}")
 
-    return playerSkills, nCorrect/i
+    return playerSkills, nCorrect/i, np.array(history)
 
 # ADF on pandas dataframe
-def ADFdf(results_df, mu0, sigma0, Sigma_t, nSamples, nBurn):
+def ADFdf(results_df, mu0, sigma0, Sigma_t,
+          timeColumn:str, player1Column:str, player2Column:str, getWinner:callable,
+          predict:callable, update:callable, shuffle:bool, consider_draw = False,
+          decay:callable = None):
+    
     # Assign numbers to the players
-    players = pd.concat([results_df['team1'], results_df['team2']]).unique()
+    players = pd.concat([results_df[player1Column], results_df[player2Column]]).unique()
     playerIDs = {players[i]:i for i in range(len(players))}
     
     # Convert to numpy array
-    results = np.zeros((results_df.shape[0],3),dtype=np.int32) # p1,p2,result
+    results = np.zeros((results_df.shape[0],4),dtype=np.int32) # time,p1,p2,result
     nDecisive = 0
     for _, row in results_df.iterrows():
-        y = np.sign(row["score1"] - row["score2"])
-        if y == 0:
+        y = getWinner(row)
+        if y == 0 and not consider_draw:
             continue
-        results[nDecisive,:] = np.array([playerIDs[row["team1"]],
-                                         playerIDs[row["team2"]],
+        results[nDecisive,:] = np.array([0 if timeColumn=="" else row[timeColumn],
+                                         playerIDs[row[player1Column]],
+                                         playerIDs[row[player2Column]],
                                          y])
         nDecisive += 1
     
-    playerSkills, accuracy = ADF(len(players), results[:nDecisive],
-                                 mu0, sigma0, Sigma_t, nSamples, nBurn)
-    return players, playerSkills, accuracy
+    results = results[:nDecisive]
+    if shuffle:
+        np.random.shuffle(results)
+
+    playerSkills, accuracy, history = ADF(len(players), results,
+                                 mu0, sigma0, Sigma_t, predict, update, decay)
+    return players, playerSkills, accuracy, history

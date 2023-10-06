@@ -3,12 +3,14 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from tabulate import tabulate
-from gibbs import sample, gaussian_approx
+from gibbs import Py_s1s2, sample, gaussian_approx, createGibbsUpdater
 from adf import ADFdf
+import scipy
+from Moment_matching import *
 
 # %%
 
-# Q4 - Run a single match
+# Q.4 - Run a single match
 def singleMatch():
 
     # Choose hyper parameters
@@ -50,47 +52,162 @@ singleMatch()
 
 # %%
 
-# Q5, Q6
-def rankTeams():
+# Q.5, Q.6
+def rankFootballTeams():
     # Load dataframe from file
-    seriesA_df = pd.read_csv("data/SerieA.csv", sep=",")
+    seriesA_df = pd.read_csv("../data/SerieA.csv", sep=",")
 
     # Choose hyper parameters
     mu0, sigma0 = 25, 25/3
-    Sigma_t = 1.5
-    nSamples = 1000
-    nBurn = 5 
+    Sigma_t = (25/6)**2
+    nSamples = 100
+    nBurn = 5
 
     # Run ADF on the dataframe rows
-    teams, skills, accuracy = ADFdf(seriesA_df, mu0, sigma0, Sigma_t, nSamples, nBurn)
+    update = createGibbsUpdater(nSamples, nBurn)
 
+     # Predicts y
+    def predict(mu1, mu2, sigma1, sigma2, Sigma_t):
+        return round(Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t))*2-1 
+    
+    teams, skills, accuracy, _ = ADFdf(seriesA_df, mu0, sigma0, Sigma_t,
+                                    '','team1','team2', lambda row : np.sign(row["score1"] - row["score2"]),
+                                    predict, update, False)
+
+    
     # Tabulate resulting posteriors
     idx = np.flip(np.argsort(skills[:,0]))
     skilltable = np.column_stack((1+np.arange(len(teams)), teams[idx], skills[idx]))
     print(tabulate(skilltable,
                     headers=["Rank", "Team", "mu", "sigma", "Games"]))
-   
     print(f"Prediction accuray: {accuracy}")
 
-    # print(tabulate(skilltable,
-    #                 headers=["rank", "team", "mu", "sigma", "games"],
-    #                 floatfmt=".2f",
-    #                 tablefmt="latex_raw"))
-
-rankTeams()
-
-# %%
-results_df = pd.read_csv("data/SerieA.csv", sep=",")
-results_df["diff"] = results_df.score1 - results_df.score2
-
-players = pd.concat([results_df['team1'], results_df['team2']]).unique()
-playerIDs = {players[i]:i for i in range(len(players))}
+rankFootballTeams()
 
 # %%
 
-winner = lambda x: 1 if x > 0 else (-1 if x < 0 else 0)
-results_df["winner"] = results_df["diff"].apply(winner)
-results_df = results_df[results_df.winner != 0]
-teamFilter = "Juventus"
-print(results_df[results_df["team1"] == teamFilter]["winner"])
-print(results_df[results_df["team2"] == teamFilter]["winner"])
+
+# Q.8
+def momentMatchingVsGibbs():
+    mu0, sigma0 = 25, 25 / 3
+    sigma_t = 25 / 6
+    y = 1
+    N_samples = 1000
+
+    # Gibbs
+    S_1, S_2, _ = sample(y, mu0, mu0, sigma0, sigma0, sigma_t, N_samples)
+
+    # Moment matching
+    mu1mm, s1mm = ps1_y(mu0, sigma0, mu0, sigma0, sigma_t, y)
+    mu2mm, s2mm = ps2_y(mu0, sigma0, mu0, sigma0, sigma_t, y)
+
+    bins = int(np.sqrt(N_samples))
+    x = np.linspace(0, 50, 200)
+    plt.hist(S_1, bins=bins, color="darkred", density=True)
+    plt.plot(x, scipy.stats.norm(mu1mm, s1mm).pdf(x), "r")
+    plt.hist(S_2, bins=bins, color="darkgreen", density=True)
+    plt.plot(x, scipy.stats.norm(mu2mm, s2mm).pdf(x), "g")
+    plt.legend(["P(S1|y) MM",  "P(S2|y) MM", "P(S1|y) gibbs", "P(S2|y) gibbs"])
+    plt.title("Moment Matching vs Gibbs sampling of S posterior")
+    plt.show()
+
+momentMatchingVsGibbs()
+
+# %%
+
+# Q.10
+def rankFootballTeamsDraw():
+    # Load dataframe from file
+    seriesA_df = pd.read_csv("../data/SerieA.csv", sep=",")
+
+    # Choose hyper parameters
+    mu0, sigma0 = 25, 25/3
+    Sigma_t = (25/6)**2
+    
+    # -------------------------
+    # Without draws
+    update = createMomentMatching()
+
+    def predict(mu1, mu2, sigma1, sigma2, Sigma_t):
+        return round(Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t))*2-1 
+    
+    _, _, accuracy, _ = ADFdf(seriesA_df, mu0, sigma0, Sigma_t,
+                              '','team1','team2', lambda row : np.sign(row["score1"] - row["score2"]),
+                              predict, update, False)
+
+    
+    # -------------------------
+    # With draws
+    update = createMomentMatching()
+
+    def predict_draws(mu1, mu2, sigma1, sigma2, Sigma_t):
+        mu = mu1-mu2
+        sigma = np.sqrt(sigma1**2 + sigma2**2 + Sigma_t)
+
+        values = [py(mu, sigma, y) for y in range(-1, 2)]
+        predicted_value = np.argmax(values) - 1
+        return predicted_value
+
+    teams, skills, accuracy_draw, _ = ADFdf(seriesA_df, mu0, sigma0, Sigma_t,
+                                   '','team1', 'team2', lambda row: np.sign(row["score1"] - row["score2"]),
+                                   predict_draws, update, False, consider_draw=True)
+
+    print(f"Prediction accuray without draws: {accuracy}")
+    print(f"Prediction accuray with draws: {accuracy_draw}")
+
+    # -------------------------
+    # Tabulate resulting posteriors
+    idx = np.flip(np.argsort(skills[:,0]))
+    skilltable = np.column_stack((1+np.arange(len(teams)), teams[idx], skills[idx]))
+    print(tabulate(skilltable,
+                    headers=["Rank", "Team", "mu", "sigma", "Games"],
+                    floatfmt=[".2f",".2f",".2f",".2f",".0f"],
+                    tablefmt="latex_raw"))
+
+rankFootballTeamsDraw()
+
+# %%
+
+
+# # Q.9, Q.10
+def trackTennisPlayers():
+    # Load dataframe from file
+    tennis_df = pd.read_csv("../data/tennis2.csv", sep=",")
+
+    # Choose hyper parameters
+    mu0, sigma0 = 25, 25/3
+    Sigma_t = (25/6)**2
+
+    # Run ADF on the dataframe rows
+    update = createGibbsUpdater(nSamples=50, nBurn=5)
+    update = createMomentMatching()
+
+    # Predicts y
+    def predict(mu1, mu2, sigma1, sigma2, Sigma_t):
+        return round(Py_s1s2(mu1, mu2, sigma1, sigma2, Sigma_t))*2-1 
+
+    decayRate = 1/100
+    def decay(sigma,dt):
+        dt = np.abs(dt)*decayRate
+        sigma = sigma0 + (sigma-sigma0)*np.exp(-dt)
+        return sigma
+    
+    teams, skills, accuracy, history = ADFdf(tennis_df, mu0, sigma0, Sigma_t,
+                                    'tourney_year_id','winner_name','loser_name', lambda row : 1,
+                                    predict, update, False, False, decay)
+
+    
+    # Tabulate resulting posteriors
+    idx = np.flip(np.argsort(skills[:,0]))
+    skilltable = np.column_stack((1+np.arange(len(teams)), teams[idx], skills[idx]))
+    skilltable = skilltable[:20]
+   
+    print(tabulate(skilltable,
+                    headers=["Rank", "Team", "mu", "sigma", "Games"],
+                    floatfmt=[".2f",".2f",".2f",".2f",".0f"],
+                    tablefmt="latex_raw"))
+    print(f"Prediction accuray: {accuracy}")
+
+
+trackTennisPlayers()
+
