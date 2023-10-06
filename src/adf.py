@@ -33,7 +33,7 @@ def ADF(nPlayers:int, results:np.array,
 # ADF on pandas dataframe
 def ADFdf(results_df, mu0, sigma0, Sigma_t,
           player1Column, player2Column, getWinner:callable,
-          predict:callable, update:callable, shuffle:bool, consider_draw=F):
+          predict:callable, update:callable, shuffle:bool, consider_draw=False):
     
     # Assign numbers to the players
     players = pd.concat([results_df[player1Column], results_df[player2Column]]).unique()
