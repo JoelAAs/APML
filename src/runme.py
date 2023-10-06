@@ -94,10 +94,9 @@ def rankFootballTeams():
 
     update = createMomentMatching()
     _, _, accuracy_draw = ADFdf(seriesA_df, mu0, sigma0, Sigma_t,
-                                    'winner_name','loser_name', lambda row : 1,
+                                    'team1', 'team2', lambda row: np.sign(row["score1"] - row["score2"]),
                                     predict_draws, update, False, consider_draw=True)
-
-
+    
     print(f"Prediction accuray: {accuracy}")
     print(f"Prediction accuray: {accuracy_draw}")
 
