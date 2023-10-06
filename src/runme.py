@@ -134,6 +134,7 @@ def rankTennisTeams():
 
     # Run ADF on the dataframe rows
     update = createGibbsUpdater(nSamples, nBurn)
+    update = createMomentMatching()
     teams, skills, accuracy = ADFdf(tennis_df, mu0, sigma0, Sigma_t,
                                     'winner_name','loser_name', lambda row : 1,
                                     predict, update, False)
