@@ -3,36 +3,36 @@ import pandas as pd
 
 # Assumed Density Filtering
 def ADF(nPlayers:int, results:np.array,
-        mu0, sigma0, Sigma_t,
+        mu0, var0, var_t,
         predict:callable, update:callable,
         decay:callable = None):
     
-    playerSkills = np.array([[mu0, sigma0, 0, -1]] * nPlayers, dtype=np.float32)
+    playerSkills = np.array([[mu0, var0, 0, -1]] * nPlayers, dtype=np.float32)
     history = [[] for _ in range(nPlayers)]
 
     i,nCorrect = 0,0
     for row in results:
         time, p1, p2, y = row
-        mu1, sigma1, nMatches1, last1 = playerSkills[p1]
-        mu2, sigma2, nMatches2, last2 = playerSkills[p2]
-       
+        mu1, var1, nMatches1, last1 = playerSkills[p1]
+        mu2, var2, nMatches2, last2 = playerSkills[p2]
+
         # Predict the outcome, count the hits
-        nCorrect += predict(mu1, mu2, sigma1, sigma2, Sigma_t)==y
+        nCorrect += predict(mu1, var1, mu2, var2, var_t)==y
 
         # Increate the standard deviation based on the time since their last game
         if decay != None:
             if last1 != -1:
-                sigma1 = decay(sigma1,time-last1)
+                var1 = decay(var1,time-last1)
             if last2 != -1:
-                sigma2 = decay(sigma2,time-last2)
+                var2 = decay(var2,time-last2)
         
         # Bayesian update
-        mu1,sigma1, mu2,sigma2 = update(mu1,sigma1, mu2,sigma2, y, Sigma_t)
-        playerSkills[p1,:] = [mu1, sigma1, nMatches1+1, time]
-        playerSkills[p2,:] = [mu2, sigma2, nMatches2+1, time]
+        mu1,var1, mu2,var2 = update(mu1,var1, mu2,var2, var_t, y)
+        playerSkills[p1,:] = [mu1, var1, nMatches1+1, time]
+        playerSkills[p2,:] = [mu2, var2, nMatches2+1, time]
         
-        history[p1].append([time, mu1, sigma1])
-        history[p2].append([time, mu2, sigma2])
+        history[p1].append([time, mu1, var1])
+        history[p2].append([time, mu2, var2])
 
         i += 1
         if i%10 == 0:
@@ -41,7 +41,7 @@ def ADF(nPlayers:int, results:np.array,
     return playerSkills, nCorrect/i, [np.array(h) for h in history]
 
 # ADF on pandas dataframe
-def ADFdf(results_df, mu0, sigma0, Sigma_t,
+def ADFdf(results_df, mu0, var0, var_t,
           timeColumn:str, player1Column:str, player2Column:str, getWinner:callable,
           predict:callable, update:callable, shuffle:bool, consider_draw = False,
           decay:callable = None):
@@ -68,5 +68,6 @@ def ADFdf(results_df, mu0, sigma0, Sigma_t,
         np.random.shuffle(results)
 
     playerSkills, accuracy, history = ADF(len(players), results,
-                                 mu0, sigma0, Sigma_t, predict, update, decay)
+                                          mu0, var0, var_t,
+                                          predict, update, decay)
     return players, playerSkills, accuracy, history
