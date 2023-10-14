@@ -27,7 +27,7 @@ def ADF(nPlayers:int, results:np.array,
                 var2 = decay(var2,time-last2)
         
         # Bayesian update
-        mu1,var1, mu2,var2 = update(mu1,var1, mu2,var2, var_t, y)
+        mu1,var1, mu2,var2 = update(mu1,var1, mu2,var2, y)
         playerSkills[p1,:] = [mu1, var1, nMatches1+1, time]
         playerSkills[p2,:] = [mu2, var2, nMatches2+1, time]
         

@@ -3,11 +3,60 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import scipy
+import time
 from tabulate import tabulate
 from gibbs import Py_s1s2, sample, gaussian_approx, createGibbsUpdater
 from adf import ADFdf
-from momentMatching import createMomentMatching, ps1_y, ps2_y, py
+from Moment_matching import createMomentMatching, ps1_y, ps2_y, py
 
+
+import Moment_matching
+from Moment_matching import createMomentMatching, ps1_y, ps2_y, py
+import importlib
+importlib.reload(Moment_matching)
+
+
+
+import trueskill
+
+def createTrueSkillUpdater():
+    trueskill.setup(draw_probability=0)
+    def updater(mu1, var1, mu2, var2, y):
+        widx = -int((y-1)/2)    
+        rs = (trueskill.Rating(mu1,np.sqrt(var1)),
+              trueskill.Rating(mu2,np.sqrt(var2)))
+        rs = trueskill.rate_1vs1(rs[widx], rs[1-widx])
+        return rs[widx].mu, rs[widx].sigma**2, rs[1-widx].mu, rs[1-widx].sigma**2
+
+    return updater
+
+def createComparisonUpdater(u1,u2,eps):
+    def updater(mu1, var1, mu2, var2, y):
+        r1 = u1(mu1, var1, mu2, var2, y)
+        r2 = u2(mu1, var1, mu2, var2, y)
+        bad = False
+        for e1,e2 in zip(r1,r2):
+            if abs(e1-e2)>eps:
+                bad = True
+        if bad:
+            print(r1,"warning")
+            print(r2,"warning")
+        else:
+            print(r1)
+            print(r2)
+        print("")
+        return r1
+    return updater
+
+def compare():
+    mu0, var0 = 25, (25/3)**2
+    var_t = (25/6)**2
+    update = createComparisonUpdater(createTrueSkillUpdater(),
+                                     createMomentMatching(var_t),
+                                     0.1)
+    update(mu0,var0,mu0,var0,1)
+
+compare()
 # %%
 
 # Q.4 - Run a single match
@@ -52,6 +101,7 @@ singleMatch()
 
 # %%
 
+
 # Q.5, Q.6
 def rankFootballTeams():
     # Load dataframe from file
@@ -60,19 +110,28 @@ def rankFootballTeams():
     # Choose hyper parameters
     mu0, var0 = 25, (25/3)**2
     var_t = (25/6)**2
-    nSamples = 100
+    nSamples = 500
     nBurn = 5
 
     # Run ADF on the dataframe rows
-    update = createGibbsUpdater(nSamples, nBurn)
+   # update = createGibbsUpdater(nSamples, nBurn)
+    update = createMomentMatching(var_t) # tODO
+    #update = createTrueSkillUpdater()
+    update = createComparisonUpdater(createTrueSkillUpdater(),
+                                     createMomentMatching(var_t),
+                                     0.1)
 
      # Predicts y
     def predict(mu1, var1, mu2, var2, var_t):
         return round(Py_s1s2(mu1, var1, mu2, var2, var_t))*2-1
     
+    t0 = time.time()
     teams, skills, accuracy, _ = ADFdf(seriesA_df, mu0, var0, var_t,
                                        '','team1','team2', lambda row : np.sign(row["score1"] - row["score2"]),
                                        predict, update, False)
+    t1 = time.time()
+
+    print(f"Took {t1-t0}")
 
     skills[:,2] = np.sqrt(skills[:,2])
 
@@ -91,6 +150,22 @@ rankFootballTeams()
 
 
 # Q.8
+
+# %%
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import scipy
+import time
+from tabulate import tabulate
+from gibbs import Py_s1s2, sample, gaussian_approx, createGibbsUpdater
+from adf import ADFdf
+
+import Moment_matching
+from Moment_matching import createMomentMatching, ps1_y, ps2_y, py
+import importlib
+importlib.reload(Moment_matching)
+
 def momentMatchingVsGibbs():
     mu0, var0 = 25, (25 / 3)**2
     var_t = (25 / 6)**2
@@ -119,7 +194,10 @@ def momentMatchingVsGibbs():
     plt.title("Moment Matching vs. Gibbs sampling of s posterior.")
     plt.show()
 
+
 momentMatchingVsGibbs()
+
+
 
 # %%
 
@@ -194,8 +272,8 @@ def trackTennisPlayers():
     var_t = (25/6)**2
 
     # Choose update method
-    update = createGibbsUpdater(nSamples=50, nBurn=5)
-    update = createMomentMatching()
+    update = createGibbsUpdater(nSamples=100, nBurn=5)
+    #update = createMomentMatching()
 
     # Predicts y
     def predict(mu1, var1, mu2, var2, var_t):

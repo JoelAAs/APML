@@ -68,8 +68,8 @@ def gaussian_approx(s_vec):
 
 
 # Creates a callable Bayesian updater that uses Gibbs sampling
-def createGibbsUpdater(nSamples, nBurn):
-    def updateGibbs(mu1,var1, mu2,var2, var_t, y):
+def createGibbsUpdater(var_t, nSamples, nBurn):
+    def gibbsUpdater(mu1,var1, mu2,var2, y):
         # Sample from the posterior
         s1s, s2s, _ = sample(mu1, var1,
                              mu2, var2,
@@ -79,5 +79,5 @@ def createGibbsUpdater(nSamples, nBurn):
         _, mu1, var1 = gaussian_approx(s1s[nBurn:])
         _, mu2, var2 = gaussian_approx(s2s[nBurn:])
         return mu1, var1, mu2, var2
-    return updateGibbs
+    return gibbsUpdater
 
