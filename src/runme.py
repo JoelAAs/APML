@@ -146,7 +146,7 @@ def rankFootballTeamsDraw():
     
     # -------------------------
     # With draws
-    update = createMomentMatching()
+    update = createMomentMatching(consider_draw=True)
 
     def predict_draws(mu1, var1, mu2, var2, var_t):
         mu = mu1-mu2
