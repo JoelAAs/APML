@@ -9,15 +9,22 @@ def ADF(nPlayers:int, results:np.array,
     
     playerSkills = np.array([[mu0, var0, 0, -1]] * nPlayers, dtype=np.float32)
     history = [[] for _ in range(nPlayers)]
+    predictions = {result_state: [0, 0] for result_state in set(results[:, 3])}
+    i = 0
 
-    i,nCorrect = 0,0
     for row in results:
         time, p1, p2, y = row
         mu1, var1, nMatches1, last1 = playerSkills[p1]
         mu2, var2, nMatches2, last2 = playerSkills[p2]
 
         # Predict the outcome, count the hits
-        nCorrect += predict(mu1, var1, mu2, var2, var_t)==y
+
+        predictions[y] = map(
+            sum, zip(
+                [int(predict(mu1, var1, mu2, var2, var_t)==y), 1],
+                predictions[y]
+            ))
+
 
         # Increate the standard deviation based on the time since their last game
         if decay != None:
@@ -38,7 +45,7 @@ def ADF(nPlayers:int, results:np.array,
         if i%10 == 0:
             print(f"Finished {i}/{len(results)}")
 
-    return playerSkills, nCorrect/i, [np.array(h) for h in history]
+    return playerSkills, predictions, [np.array(h) for h in history]
 
 # ADF on pandas dataframe
 def ADFdf(results_df, mu0, var0, var_t,
@@ -67,7 +74,7 @@ def ADFdf(results_df, mu0, var0, var_t,
     if shuffle:
         np.random.shuffle(results)
 
-    playerSkills, accuracy, history = ADF(len(players), results,
+    playerSkills, predictions, history = ADF(len(players), results,
                                           mu0, var0, var_t,
                                           predict, update, decay)
-    return players, playerSkills, accuracy, history
+    return players, playerSkills, predictions, history
