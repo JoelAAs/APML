@@ -50,13 +50,14 @@ def sample(mu_1, var_1, mu_2, var_2, var_t, y, nSamples):
     S_2 = np.zeros(nSamples)
     T = np.zeros(nSamples)
 
-    s_1, s_2 = 0, 0
+    s_1, s_2, t = 0, 0, 0
     for k in range(nSamples):
-        t = Pt_s1s2y(s_1, s_2, y, var_t)
+        tn = Pt_s1s2y(s_1, s_2, y, var_t)
         s_1, s_2 = Ps1s2_t(t, mu_1, var_1, mu_2, var_2, var_t)
         S_1[k] = s_1
         S_2[k] = s_2
-        T[k] = t
+        T[k] = tn
+        t = tn
     
     return S_1, S_2, T
 
