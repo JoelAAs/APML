@@ -133,7 +133,7 @@ def rankFootballTeams():
 
     print(f"Took {t1-t0}")
 
-    skills[:,2] = np.sqrt(skills[:,2])
+    skills[:,1] = np.sqrt(skills[:,1])
 
     # Tabulate resulting posteriors
     idx = np.flip(np.argsort(skills[:,0]))
@@ -212,7 +212,7 @@ def rankFootballTeamsDraw():
     
     # -------------------------
     # Without draws
-    update = createMomentMatching()
+    update = createMomentMatching(var_t)
 
     def predict(mu1, var1, mu2, var2, var_t):
         return round(Py_s1s2(mu1, var1, mu2, var2, var_t))*2-1
@@ -224,7 +224,7 @@ def rankFootballTeamsDraw():
     
     # -------------------------
     # With draws
-    update = createMomentMatching()
+    update = createMomentMatching(var_t)
 
     def predict_draws(mu1, var1, mu2, var2, var_t):
         mu = mu1-mu2
@@ -239,7 +239,7 @@ def rankFootballTeamsDraw():
                                             lambda row: np.sign(row["score1"] - row["score2"]),
                                             predict_draws, update, False, consider_draw=True)
 
-    skills[:,2] = np.sqrt(skills[:,2])
+    skills[:,1] = np.sqrt(skills[:,1])
 
     # -------------------------
     # Tabulate resulting posteriors
@@ -272,8 +272,9 @@ def trackTennisPlayers():
     var_t = (25/6)**2
 
     # Choose update method
-    update = createGibbsUpdater(nSamples=100, nBurn=5)
-    #update = createMomentMatching()
+    update = createGibbsUpdater(var_t, nSamples=100, nBurn=5)
+    #update = createMomentMatching(var_t)
+    #update = createTrueSkillUpdater()
 
     # Predicts y
     def predict(mu1, var1, mu2, var2, var_t):
@@ -286,29 +287,38 @@ def trackTennisPlayers():
     players, skills, accuracy, history = ADFdf(tennis_df, mu0, var0, var_t,
                                                'day','winner_name','loser_name',
                                                lambda row : 1,
-                                               predict, update, False, False, decay)
+                                               predict, update, False, False)
 
-    skills[:,2] = np.sqrt(skills[:,2])
+    skills[:,1] = np.sqrt(skills[:,1])
 
+    filter = skills[:,2] > 100
+    skills = skills[filter]
+    players = players[filter]
+    history = [item for item, mask in zip(history, filter) if mask]
     idx = np.flip(np.argsort(skills[:,0]))
-    skilltable = np.column_stack((1+np.arange(len(players)), players[idx], skills[idx,:3]))
+    
+    skilltable = np.column_stack((1+np.arange(len(players)),
+                                  players[idx],
+                                  skills[idx,:3]))
     skilltable = skilltable[:20]
 
     print(tabulate(skilltable,
-                    headers=["Rank", "Team", "mu", "sigma", "Games"],
-                    floatfmt=[".0f",".2f",".2f",".2f",".0f"],
+                    headers=["Rank", "Player", "mu", "sigma", "Games"],
+                    floatfmt=[".0f",".2f",".2f",".2f",".0f",".0f"],
                     tablefmt="latex_raw"))
     print(f"Prediction accuracy: {accuracy}")
 
     # Draw history of skill
+    day0 = history[0][0,0]
     for i in idx[:5]:
-        xs = history[i][:,0]
+        xs = (history[i][:,0]-day0)/365
         ys = history[i][:,1]
-        errs = np.sqrt(history[i][:,2])*3 # 99% confidence
+        errs = np.sqrt(history[i][:,2])*2 # 95% confidence
         plt.plot(xs,ys,label=players[i])
         plt.fill_between(xs, ys-errs, ys+errs, alpha=0.5)
         plt.legend()
-                    
+                
+
 trackTennisPlayers()
 
 

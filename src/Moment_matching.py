@@ -35,12 +35,10 @@ def pt_y(mu, sigma, y):
         b = 1
     else:
         raise ValueError(f"Illegal value of y:{y}")
-    print(a,b,mu,sigma)
-    alpha = (a-mu)/sigma
-    beta = (b-mu)/sigma
+   
     return scipy.stats.truncnorm(
-        a=alpha,
-        b=beta,
+        a=a,
+        b=b,
         loc=mu,
         scale=sigma
     )

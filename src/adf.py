@@ -35,7 +35,7 @@ def ADF(nPlayers:int, results:np.array,
         history[p2].append([time, mu2, var2])
 
         i += 1
-        if i%10 == 0:
+        if i%int(len(results)/10) == 0:
             print(f"Finished {i}/{len(results)}")
 
     return playerSkills, nCorrect/i, [np.array(h) for h in history]
