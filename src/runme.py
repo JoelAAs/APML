@@ -58,7 +58,17 @@ def compare():
 
 compare()
 # %%
+def format_and_present_accuracy(predictions):
+    msg = ""
+    all_correct, total = 0, 0
+    for state in predictions:
+        n_correct, n_total = predictions[state]
+        msg += f"Result {state}:{n_correct/n_total*100} %, {n_correct}/{n_total} Frac\n"
+        all_correct += n_correct
+        total += n_total
 
+    msg += f"average accuracy {all_correct/total*100}"
+    return msg
 # Q.4 - Run a single match
 def singleMatch():
 
@@ -114,7 +124,7 @@ def rankFootballTeams():
     nBurn = 5
 
     # Run ADF on the dataframe rows
-   # update = createGibbsUpdater(nSamples, nBurn)
+    # update = createGibbsUpdater(nSamples, nBurn)
     update = createMomentMatching(var_t) # tODO
     #update = createTrueSkillUpdater()
     update = createComparisonUpdater(createTrueSkillUpdater(),
@@ -125,12 +135,12 @@ def rankFootballTeams():
     def predict(mu1, var1, mu2, var2, var_t):
         return round(Py_s1s2(mu1, var1, mu2, var2, var_t))*2-1
     
+
     t0 = time.time()
-    teams, skills, accuracy, _ = ADFdf(seriesA_df, mu0, var0, var_t,
+    teams, skills, predictions, _ = ADFdf(seriesA_df, mu0, var0, var_t,
                                        '','team1','team2', lambda row : np.sign(row["score1"] - row["score2"]),
                                        predict, update, False)
     t1 = time.time()
-
     print(f"Took {t1-t0}")
 
     skills[:,1] = np.sqrt(skills[:,1])
@@ -142,7 +152,9 @@ def rankFootballTeams():
                     headers=["Rank", "Team", "mu", "sigma", "Games"],
                     floatfmt=[".0f",".2f",".2f",".2f",".0f"],
                     tablefmt="latex_raw"))
-    print(f"Prediction accuracy: {accuracy}")
+    print(predictions)
+    predictions_accuracy_msg = format_and_present_accuracy(predictions)
+    print(predictions_accuracy_msg)
 
 rankFootballTeams()
 
@@ -177,8 +189,8 @@ def momentMatchingVsGibbs():
     S_1, S_2, _ = sample(mu0, var0, mu0, var0, var_t, y, nSamples)
 
     # Moment matching
-    mu1mm, var1mm = ps1_y(mu0, var0, mu0, var0, var_t, y)
-    mu2mm, var2mm = ps2_y(mu0, var0, mu0, var0, var_t, y)
+    mu1mm, var1mm = ps1_y(mu0, var0, mu0, var0, var_t, y, consider_draw=False)
+    mu2mm, var2mm = ps2_y(mu0, var0, mu0, var0, var_t, y, consider_draw=False)
 
     sigma1mm, sigma2mm = np.sqrt(var1mm), np.sqrt(var2mm)
 
@@ -217,24 +229,23 @@ def rankFootballTeamsDraw():
     def predict(mu1, var1, mu2, var2, var_t):
         return round(Py_s1s2(mu1, var1, mu2, var2, var_t))*2-1
     
-    _, _, accuracy, _ = ADFdf(seriesA_df, mu0, var0, var_t,
+    _, _, predictions, _ = ADFdf(seriesA_df, mu0, var0, var_t,
                               '','team1','team2', lambda row : np.sign(row["score1"] - row["score2"]),
                               predict, update, False)
 
     
     # -------------------------
     # With draws
-    update = createMomentMatching(var_t)
-
+    update = createMomentMatching(var_t, consider_draw=True)
     def predict_draws(mu1, var1, mu2, var2, var_t):
         mu = mu1-mu2
         sigma = np.sqrt(var1 + var2 + var_t)
 
-        values = [py(mu, sigma, y) for y in range(-1, 2)]
+        values = [py(mu, sigma, y, consider_draw=True) for y in range(-1, 2)]
         predicted_value = np.argmax(values) - 1
         return predicted_value
 
-    teams, skills, accuracy_draw, _ = ADFdf(seriesA_df, mu0, var0, var_t,
+    teams, skills, predictions_draw, _ = ADFdf(seriesA_df, mu0, var0, var_t,
                                             '','team1', 'team2',
                                             lambda row: np.sign(row["score1"] - row["score2"]),
                                             predict_draws, update, False, consider_draw=True)
@@ -249,9 +260,11 @@ def rankFootballTeamsDraw():
                     headers=["Rank", "Team", "mu", "sigma", "Games"],
                     floatfmt=[".0f",".2f",".2f",".2f",".0f"],
                     tablefmt="latex_raw"))
+    predictions_accuracy_msg = format_and_present_accuracy(predictions)
+    print(predictions_accuracy_msg)
 
-    print(f"Prediction accuracy without draws: {accuracy}")
-    print(f"Prediction accuracy with draws: {accuracy_draw}")
+    predictions_accuracy_msg_draw = format_and_present_accuracy(predictions_draw)
+    print(predictions_accuracy_msg_draw)
 
 
 rankFootballTeamsDraw()
@@ -284,7 +297,7 @@ def trackTennisPlayers():
     def decay(var,dt):
         return var0 + (var-var0)*np.exp(-dt*decayRate)
 
-    players, skills, accuracy, history = ADFdf(tennis_df, mu0, var0, var_t,
+    players, skills, predictions_tennis, history = ADFdf(tennis_df, mu0, var0, var_t,
                                                'day','winner_name','loser_name',
                                                lambda row : 1,
                                                predict, update, False, False)
@@ -306,7 +319,8 @@ def trackTennisPlayers():
                     headers=["Rank", "Player", "mu", "sigma", "Games"],
                     floatfmt=[".0f",".2f",".2f",".2f",".0f",".0f"],
                     tablefmt="latex_raw"))
-    print(f"Prediction accuracy: {accuracy}")
+    predictions_tennis_msg = format_and_present_accuracy(predictions_tennis)
+    print(predictions_tennis_msg)
 
     # Draw history of skill
     day0 = history[0][0,0]
