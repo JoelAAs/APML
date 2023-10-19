@@ -209,28 +209,6 @@ momentMatchingVsGibbs()
 
 # %%
 
-
-def momentMatchingVsGibbs2():
-    mu0, var0 = 25, (25 / 3)**2
-    var_t = (25 / 6)**2
-
-    y = 1
-    nSamples = 10000
-
-    # Use the updaters to perform a single step
-    updater = createComparisonUpdater(createGibbsUpdater(var_t,nSamples,0),
-                            createMomentMatching(var_t),
-                            -0.1)
-    
-    mu1,var1,mu2,var2 = mu0,var0,mu0,var0
-    for i in range(5):
-        mu1,var1,mu2,var2 = updater(mu1,var1,mu2,var2,y)
-
-
-momentMatchingVsGibbs2()
-
-# %%
-
 # tODO
 import numpy as np
 import pandas as pd
@@ -321,21 +299,23 @@ def trackTennisPlayers():
 
     # Choose update method
     update = createGibbsUpdater(var_t, nSamples=100, nBurn=5)
-    #update = createMomentMatching(var_t)
-    #update = createTrueSkillUpdater()
+    update = createMomentMatching(var_t)
+    update = createTrueSkillUpdater()
 
     # Predicts y
     def predict(mu1, var1, mu2, var2, var_t):
         return round(Py_s1s2(mu1, var1, mu2, var2, var_t))*2-1 
 
-    decayRate = 1/365
+    # Multiply skill variance by e after 5 years of inactivity 
+    decayRate = 1/(365*20)
     def decay(var,dt):
         return var0 + (var-var0)*np.exp(-dt*decayRate)
 
     players, skills, predictions_tennis, history = ADFdf(tennis_df, mu0, var0, var_t,
                                                'day','winner_name','loser_name',
                                                lambda row : 1,
-                                               predict, update, False, False)
+                                               predict, update, False, False,decay
+                                               )
 
     skills[:,1] = np.sqrt(skills[:,1])
 
@@ -360,12 +340,15 @@ def trackTennisPlayers():
     # Draw history of skill
     day0 = history[0][0,0]
     for i in idx[:5]:
-        xs = (history[i][:,0]-day0)/365
+        xs = (history[i][:,0]-day0)/365+1991
         ys = history[i][:,1]
         errs = np.sqrt(history[i][:,2])*2 # 95% confidence
         plt.plot(xs,ys,label=players[i])
         plt.fill_between(xs, ys-errs, ys+errs, alpha=0.5)
         plt.legend()
+        plt.xlabel("Time")
+        plt.ylabel("Skill mean")
+        plt.xticks([2000,2006,2010,2016])
                 
 
 trackTennisPlayers()

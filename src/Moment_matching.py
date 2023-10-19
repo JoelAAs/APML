@@ -2,8 +2,7 @@ import numpy as np
 import scipy.stats
 
 
-def py(mu, sigma, y, consider_draw, drawstd = 5):
-    t_norm = scipy.stats.norm(loc=mu, scale=sigma)
+def getAlphaBeta(y, consider_draw, drawstd = 5):
     if y == 1:
         a = (drawstd if consider_draw else 0)
         b = np.inf
@@ -15,26 +14,20 @@ def py(mu, sigma, y, consider_draw, drawstd = 5):
         b = drawstd
     else:
         raise ValueError(f"Illegal value of y:{y}")
+    return a, b
 
+def py(mu, sigma, y, consider_draw):
+    t_norm = scipy.stats.norm(loc=mu, scale=sigma)
+    a, b = getAlphaBeta(y, consider_draw)
     return t_norm.cdf(b) - t_norm.cdf(a)
 
 
-def pt_y(mu, sigma, y, consider_draw, drawstd = 5):
-    if y == 1:
-        a = (drawstd if consider_draw else 0)
-        b = np.inf
-    elif y == -1:
-        a = -np.inf
-        b = (-drawstd if consider_draw else 0)
-    elif y == 0 and consider_draw:
-        a = -drawstd
-        b = drawstd
-    else:
-        raise ValueError(f"Illegal value of y:{y}")
-   
+def pt_y(mu, sigma, y, consider_draw):
+    a, b = getAlphaBeta(y, consider_draw)
+    alpha, beta = (a - mu) / sigma, (b - mu) / sigma
     return scipy.stats.truncnorm(
-        a=a,
-        b=b,
+        a=alpha,
+        b=beta,
         loc=mu,
         scale=sigma
     )
