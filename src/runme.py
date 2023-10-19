@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import scipy
 import time
 from tabulate import tabulate
-from gibbs import Py_s1s2, sample, gaussian_approx, createGibbsUpdater
+from gibbs import Py_s1s2, gibbsSample, gaussian_approx, createGibbsUpdater
 from adf import ADFdf
 from Moment_matching import createMomentMatching, ps1_y, ps2_y, py
 
@@ -58,17 +58,7 @@ def compare():
 
 compare()
 # %%
-def format_and_present_accuracy(predictions):
-    msg = ""
-    all_correct, total = 0, 0
-    for state in predictions:
-        n_correct, n_total = predictions[state]
-        msg += f"Result {state}:{n_correct/n_total*100} %, {n_correct}/{n_total} Frac\n"
-        all_correct += n_correct
-        total += n_total
 
-    msg += f"average accuracy {all_correct/total*100}"
-    return msg
 # Q.4 - Run a single match
 def singleMatch():
 
@@ -79,7 +69,7 @@ def singleMatch():
     var_t = (25/6)**2
     N_samples = 1000
     n_burn = 5
-    S_1, S_2, T = sample(mu1, var1, mu2, var2, var_t, y, N_samples)
+    S_1, S_2, T = gibbsSample(mu1, var1, mu2, var2, var_t, y, N_samples)
 
     # Q4.1 burn-in is about 5 values
     gen = np.linspace(0, N_samples - 1, N_samples)
@@ -99,17 +89,36 @@ def singleMatch():
 
     # Q4.4
     bins = int(np.sqrt(N_samples))
-    plt.hist(S_1[n_burn:], bins=bins, color="r", density=True)
-    plt.plot(x, p_s1, color="darkred")
-    plt.hist(S_2[n_burn:], bins=bins, color="g", density=True)
-    plt.plot(x, p_s2, color="darkgreen")
-    plt.hist(T[n_burn:], bins=bins, color="b", density=True)
+    plt.hist(S_1[n_burn:], bins=bins, color="r", alpha=0.5, density=True)
+    plt.plot(x, p_s1, color="r")
+    plt.hist(S_2[n_burn:], bins=bins, color="g", alpha=0.5, density=True)
+    plt.plot(x, p_s2, color="g")
+    plt.hist(T[n_burn:], bins=bins, color="b", alpha=0.5, density=True)
     plt.legend(["s1", "p1", "s2", "p2", "t"])
     plt.show()
 
 singleMatch()
 
 # %%
+
+# Create prediction summary string
+def format_and_present_accuracy(predictions):
+    msg = "Predictions results:\n"
+    all_correct, total = 0, 0
+    for state in predictions:
+        n_correct, n_total = predictions[state]
+        msg += f"Result {state:2}: {n_correct/n_total*100:6.2f}% ({n_correct}/{n_total})\n"
+        all_correct += n_correct
+        total += n_total
+
+    msg += f"Average accuracy: {all_correct/total*100}"
+    return msg
+
+# %%
+import Moment_matching
+from Moment_matching import createMomentMatching, ps1_y, ps2_y, py
+import importlib
+importlib.reload(Moment_matching)
 
 
 # Q.5, Q.6
@@ -124,12 +133,12 @@ def rankFootballTeams():
     nBurn = 5
 
     # Run ADF on the dataframe rows
-    # update = createGibbsUpdater(nSamples, nBurn)
+    update = createGibbsUpdater(var_t, nSamples, nBurn)
     update = createMomentMatching(var_t) # tODO
     #update = createTrueSkillUpdater()
-    update = createComparisonUpdater(createTrueSkillUpdater(),
-                                     createMomentMatching(var_t),
-                                     0.1)
+    # update = createComparisonUpdater(createTrueSkillUpdater(),
+    #                                  createMomentMatching(var_t),
+    #                                  0.1)
 
      # Predicts y
     def predict(mu1, var1, mu2, var2, var_t):
@@ -152,7 +161,6 @@ def rankFootballTeams():
                     headers=["Rank", "Team", "mu", "sigma", "Games"],
                     floatfmt=[".0f",".2f",".2f",".2f",".0f"],
                     tablefmt="latex_raw"))
-    print(predictions)
     predictions_accuracy_msg = format_and_present_accuracy(predictions)
     print(predictions_accuracy_msg)
 
@@ -164,29 +172,16 @@ rankFootballTeams()
 # Q.8
 
 # %%
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import scipy
-import time
-from tabulate import tabulate
-from gibbs import Py_s1s2, sample, gaussian_approx, createGibbsUpdater
-from adf import ADFdf
-
-import Moment_matching
-from Moment_matching import createMomentMatching, ps1_y, ps2_y, py
-import importlib
-importlib.reload(Moment_matching)
 
 def momentMatchingVsGibbs():
     mu0, var0 = 25, (25 / 3)**2
     var_t = (25 / 6)**2
 
     y = 1
-    nSamples = 1000
+    nSamples = 10000
 
     # Gibbs
-    S_1, S_2, _ = sample(mu0, var0, mu0, var0, var_t, y, nSamples)
+    S_1, S_2, _ = gibbsSample(mu0, var0, mu0, var0, var_t, y, nSamples)
 
     # Moment matching
     mu1mm, var1mm = ps1_y(mu0, var0, mu0, var0, var_t, y, consider_draw=False)
@@ -195,6 +190,8 @@ def momentMatchingVsGibbs():
     sigma1mm, sigma2mm = np.sqrt(var1mm), np.sqrt(var2mm)
 
     print(mu1mm, sigma1mm)
+    _,mean, var = gaussian_approx(S_1)
+    print(mean, np.sqrt(var))
 
     bins = int(np.sqrt(nSamples))
     x = np.linspace(0, 50, 200)
@@ -210,8 +207,46 @@ def momentMatchingVsGibbs():
 momentMatchingVsGibbs()
 
 
+# %%
+
+
+def momentMatchingVsGibbs2():
+    mu0, var0 = 25, (25 / 3)**2
+    var_t = (25 / 6)**2
+
+    y = 1
+    nSamples = 10000
+
+    # Use the updaters to perform a single step
+    updater = createComparisonUpdater(createGibbsUpdater(var_t,nSamples,0),
+                            createMomentMatching(var_t),
+                            -0.1)
+    
+    mu1,var1,mu2,var2 = mu0,var0,mu0,var0
+    for i in range(5):
+        mu1,var1,mu2,var2 = updater(mu1,var1,mu2,var2,y)
+
+
+momentMatchingVsGibbs2()
 
 # %%
+
+# tODO
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import scipy
+import time
+from tabulate import tabulate
+from gibbs import Py_s1s2, gibbsSample, gaussian_approx, createGibbsUpdater
+from adf import ADFdf
+
+import Moment_matching
+from Moment_matching import createMomentMatching, ps1_y, ps2_y, py
+import importlib
+importlib.reload(Moment_matching)
+
+
 
 # Q.10
 def rankFootballTeamsDraw():
@@ -224,14 +259,14 @@ def rankFootballTeamsDraw():
     
     # -------------------------
     # Without draws
-    update = createMomentMatching(var_t)
+    update = createMomentMatching(var_t, consider_draw=False)
 
     def predict(mu1, var1, mu2, var2, var_t):
         return round(Py_s1s2(mu1, var1, mu2, var2, var_t))*2-1
     
     _, _, predictions, _ = ADFdf(seriesA_df, mu0, var0, var_t,
                               '','team1','team2', lambda row : np.sign(row["score1"] - row["score2"]),
-                              predict, update, False)
+                              predict, update, False, consider_draw=False)
 
     
     # -------------------------
@@ -243,12 +278,12 @@ def rankFootballTeamsDraw():
 
         values = [py(mu, sigma, y, consider_draw=True) for y in range(-1, 2)]
         predicted_value = np.argmax(values) - 1
+        print(f"predict {values} -> {predicted_value}")
         return predicted_value
 
     teams, skills, predictions_draw, _ = ADFdf(seriesA_df, mu0, var0, var_t,
-                                            '','team1', 'team2',
-                                            lambda row: np.sign(row["score1"] - row["score2"]),
-                                            predict_draws, update, False, consider_draw=True)
+                                               '','team1', 'team2', lambda row: np.sign(row["score1"] - row["score2"]),
+                                               predict_draws, update, False, consider_draw=True)
 
     skills[:,1] = np.sqrt(skills[:,1])
 
@@ -261,10 +296,10 @@ def rankFootballTeamsDraw():
                     floatfmt=[".0f",".2f",".2f",".2f",".0f"],
                     tablefmt="latex_raw"))
     predictions_accuracy_msg = format_and_present_accuracy(predictions)
-    print(predictions_accuracy_msg)
+    print("Without draws:\n", predictions_accuracy_msg)
 
     predictions_accuracy_msg_draw = format_and_present_accuracy(predictions_draw)
-    print(predictions_accuracy_msg_draw)
+    print("With draws:\n", predictions_accuracy_msg_draw)
 
 
 rankFootballTeamsDraw()

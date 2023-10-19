@@ -2,33 +2,33 @@ import numpy as np
 import scipy.stats
 
 
-def py(mu, sigma, y, consider_draw):
+def py(mu, sigma, y, consider_draw, drawstd = 5):
     t_norm = scipy.stats.norm(loc=mu, scale=sigma)
     if y == 1:
-        a = (1 if consider_draw else 0)
+        a = (drawstd if consider_draw else 0)
         b = np.inf
     elif y == -1:
         a = -np.inf
-        b = (-1 if consider_draw else 0)
+        b = (-drawstd if consider_draw else 0)
     elif y == 0 and consider_draw:
-        a = -1
-        b = 1
+        a = -drawstd
+        b = drawstd
     else:
         raise ValueError(f"Illegal value of y:{y}")
 
     return t_norm.cdf(b) - t_norm.cdf(a)
 
 
-def pt_y(mu, sigma, y, consider_draw):
+def pt_y(mu, sigma, y, consider_draw, drawstd = 5):
     if y == 1:
-        a = (1 if consider_draw else 0)
+        a = (drawstd if consider_draw else 0)
         b = np.inf
     elif y == -1:
         a = -np.inf
-        b = (-1 if consider_draw else 0)
+        b = (-drawstd if consider_draw else 0)
     elif y == 0 and consider_draw:
-        a = -1
-        b = 1
+        a = -drawstd
+        b = drawstd
     else:
         raise ValueError(f"Illegal value of y:{y}")
    

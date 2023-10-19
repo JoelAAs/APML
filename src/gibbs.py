@@ -45,7 +45,7 @@ def Py_s1s2(mu1, var1, mu2, var2, var_t):
 
 
 # Sample from the posterior P(s1,s2|t,y)
-def sample(mu_1, var_1, mu_2, var_2, var_t, y, nSamples):
+def gibbsSample(mu_1, var_1, mu_2, var_2, var_t, y, nSamples):
     S_1 = np.zeros(nSamples)
     S_2 = np.zeros(nSamples)
     T = np.zeros(nSamples)
@@ -72,7 +72,7 @@ def gaussian_approx(s_vec):
 def createGibbsUpdater(var_t, nSamples, nBurn):
     def gibbsUpdater(mu1,var1, mu2,var2, y):
         # Sample from the posterior
-        s1s, s2s, _ = sample(mu1, var1,
+        s1s, s2s, _ = gibbsSample(mu1, var1,
                              mu2, var2,
                              var_t, y, nSamples)
 
