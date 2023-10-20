@@ -10,13 +10,8 @@ from adf import ADFdf
 from Moment_matching import createMomentMatching, ps1_y, ps2_y, py
 
 
-# TODO remove, was just for debugging
-# import Moment_matching
-# from Moment_matching import createMomentMatching, ps1_y, ps2_y, py
-# import importlib
-# importlib.reload(Moment_matching)
-
-# TODO if we keep it here for comparison, we should update requirements.txt
+# %%
+# Import the trueskill package for comparison. It is not used in the code.
 import trueskill
 
 def createTrueSkillUpdater():
@@ -48,17 +43,15 @@ def createComparisonUpdater(u1,u2,eps):
         return r1
     return updater
 
-# TODO remove
-# This is to show that our mm is different from the trueskill
-def compare():
+# This is to show that our mm is slightly different from trueskill
+def testCompareTrueskill():
     mu0, var0 = 25, (25/3)**2
     var_t = (25/6)**2
     update = createComparisonUpdater(createTrueSkillUpdater(),
                                      createMomentMatching(var_t),
                                      0.1)
     update(mu0*2,var0,mu0,var0,1)
-
-compare()
+testCompareTrueskill()
 # %%
 
 # Q.4 - Run a single match
