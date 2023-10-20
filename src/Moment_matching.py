@@ -47,7 +47,6 @@ def approx_q(mu_c2t, sigma_c2t, y, consider_draw):
     trunc_q = pt_y(mu_c2t, sigma_c2t, y, consider_draw)
     mu_q = trunc_q.mean()
     var_q = trunc_q.var()
-    #print(f"{mu_c2t}, {sigma_c2t}, {y} -> {mu_q}, {var_q}")
     return mu_q, var_q, trunc_q
 
 

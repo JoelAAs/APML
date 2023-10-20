@@ -4,8 +4,7 @@ import pandas as pd
 # Assumed Density Filtering
 def ADF(nPlayers:int, results:np.array,
         mu0, var0, var_t,
-        predict:callable, update:callable,
-        decay:callable = None):
+        update:callable, predict:callable, decay:callable = None):
     
     playerSkills = np.array([[mu0, var0, 0, -1]] * nPlayers, dtype=np.float32)
     history = [[] for _ in range(nPlayers)]
@@ -18,13 +17,11 @@ def ADF(nPlayers:int, results:np.array,
         mu2, var2, nMatches2, last2 = playerSkills[p2]
 
         # Predict the outcome, count the hits
-
         predictions[y] = map(
             sum, zip(
                 [int(predict(mu1, var1, mu2, var2, var_t)==y), 1],
                 predictions[y]
             ))
-
 
         # Increate the standard deviation based on the time since their last game
         if decay != None:
@@ -48,10 +45,10 @@ def ADF(nPlayers:int, results:np.array,
     return playerSkills, predictions, [np.array(h) for h in history]
 
 # ADF on pandas dataframe
-def ADFdf(results_df, mu0, var0, var_t,
+def ADFdf(results_df:pd.DataFrame, mu0, var0, var_t,
           timeColumn:str, player1Column:str, player2Column:str, getWinner:callable,
-          predict:callable, update:callable, shuffle:bool, consider_draw = False,
-          decay:callable = None):
+          shuffle:bool, consider_draw:bool,
+          update:callable, predict:callable, decay:callable = None):
     
     # Assign numbers to the players
     players = pd.concat([results_df[player1Column], results_df[player2Column]]).unique()
@@ -76,5 +73,5 @@ def ADFdf(results_df, mu0, var0, var_t,
 
     playerSkills, predictions, history = ADF(len(players), results,
                                           mu0, var0, var_t,
-                                          predict, update, decay)
+                                          update, predict, decay)
     return players, playerSkills, predictions, history

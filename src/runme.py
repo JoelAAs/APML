@@ -10,13 +10,13 @@ from adf import ADFdf
 from Moment_matching import createMomentMatching, ps1_y, ps2_y, py
 
 
-import Moment_matching
-from Moment_matching import createMomentMatching, ps1_y, ps2_y, py
-import importlib
-importlib.reload(Moment_matching)
+# TODO remove, was just for debugging
+# import Moment_matching
+# from Moment_matching import createMomentMatching, ps1_y, ps2_y, py
+# import importlib
+# importlib.reload(Moment_matching)
 
-
-
+# TODO if we keep it here for comparison, we should update requirements.txt
 import trueskill
 
 def createTrueSkillUpdater():
@@ -48,13 +48,15 @@ def createComparisonUpdater(u1,u2,eps):
         return r1
     return updater
 
+# TODO remove
+# This is to show that our mm is different from the trueskill
 def compare():
     mu0, var0 = 25, (25/3)**2
     var_t = (25/6)**2
     update = createComparisonUpdater(createTrueSkillUpdater(),
                                      createMomentMatching(var_t),
                                      0.1)
-    update(mu0,var0,mu0,var0,1)
+    update(mu0*2,var0,mu0,var0,1)
 
 compare()
 # %%
@@ -73,9 +75,9 @@ def singleMatch():
 
     # Q4.1 burn-in is about 5 values
     gen = np.linspace(0, N_samples - 1, N_samples)
-    plt.plot(gen, S_1, "g")
-    plt.plot(gen, S_2, "r")
-    plt.plot(gen, T, "b")
+    plt.plot(gen, S_1, "r", alpha=0.5)
+    plt.plot(gen, S_2, "g", alpha=0.5)
+    plt.plot(gen, T, "b", alpha=0.5)
     plt.show()
 
     # Q4.2 gaussian_approx
@@ -115,11 +117,6 @@ def format_and_present_accuracy(predictions):
     return msg
 
 # %%
-import Moment_matching
-from Moment_matching import createMomentMatching, ps1_y, ps2_y, py
-import importlib
-importlib.reload(Moment_matching)
-
 
 # Q.5, Q.6
 def rankFootballTeams():
@@ -134,11 +131,7 @@ def rankFootballTeams():
 
     # Run ADF on the dataframe rows
     update = createGibbsUpdater(var_t, nSamples, nBurn)
-    update = createMomentMatching(var_t) # tODO
-    #update = createTrueSkillUpdater()
-    # update = createComparisonUpdater(createTrueSkillUpdater(),
-    #                                  createMomentMatching(var_t),
-    #                                  0.1)
+    update = createMomentMatching(var_t)
 
      # Predicts y
     def predict(mu1, var1, mu2, var2, var_t):
@@ -147,8 +140,10 @@ def rankFootballTeams():
 
     t0 = time.time()
     teams, skills, predictions, _ = ADFdf(seriesA_df, mu0, var0, var_t,
-                                       '','team1','team2', lambda row : np.sign(row["score1"] - row["score2"]),
-                                       predict, update, False)
+                                          '','team1','team2',
+                                          lambda row : np.sign(row["score1"] - row["score2"]),
+                                          False, False,
+                                          update, predict)
     t1 = time.time()
     print(f"Took {t1-t0}")
 
@@ -178,7 +173,7 @@ def momentMatchingVsGibbs():
     var_t = (25 / 6)**2
 
     y = 1
-    nSamples = 10000
+    nSamples = 1000
 
     # Gibbs
     S_1, S_2, _ = gibbsSample(mu0, var0, mu0, var0, var_t, y, nSamples)
@@ -195,9 +190,9 @@ def momentMatchingVsGibbs():
 
     bins = int(np.sqrt(nSamples))
     x = np.linspace(0, 50, 200)
-    plt.hist(S_1, bins=bins, color="darkred", density=True, alpha=0.6)
+    plt.hist(S_1, bins=bins, color="r", alpha=0.5, density=True)
     plt.plot(x, scipy.stats.norm(mu1mm, sigma1mm).pdf(x), "r")
-    plt.hist(S_2, bins=bins, color="darkgreen", density=True, alpha=0.6)
+    plt.hist(S_2, bins=bins, color="g", alpha=0.5, density=True)
     plt.plot(x, scipy.stats.norm(mu2mm, sigma2mm).pdf(x), "g")
     plt.legend(["p(s1|y) MM", "p(s2|y) MM", "p(s1|y) Gibbs", "p(s2|y) Gibbs"])
     plt.title("Moment Matching vs. Gibbs sampling of s posterior.")
@@ -208,22 +203,6 @@ momentMatchingVsGibbs()
 
 
 # %%
-
-# tODO
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import scipy
-import time
-from tabulate import tabulate
-from gibbs import Py_s1s2, gibbsSample, gaussian_approx, createGibbsUpdater
-from adf import ADFdf
-
-import Moment_matching
-from Moment_matching import createMomentMatching, ps1_y, ps2_y, py
-import importlib
-importlib.reload(Moment_matching)
-
 
 
 # Q.10
@@ -243,8 +222,10 @@ def rankFootballTeamsDraw():
         return round(Py_s1s2(mu1, var1, mu2, var2, var_t))*2-1
     
     _, _, predictions, _ = ADFdf(seriesA_df, mu0, var0, var_t,
-                              '','team1','team2', lambda row : np.sign(row["score1"] - row["score2"]),
-                              predict, update, False, consider_draw=False)
+                                 '','team1','team2',
+                                 lambda row : np.sign(row["score1"] - row["score2"]),
+                                 False, False,
+                                 update, predict)
 
     
     # -------------------------
@@ -256,12 +237,13 @@ def rankFootballTeamsDraw():
 
         values = [py(mu, sigma, y, consider_draw=True) for y in range(-1, 2)]
         predicted_value = np.argmax(values) - 1
-        print(f"predict {values} -> {predicted_value}")
         return predicted_value
 
     teams, skills, predictions_draw, _ = ADFdf(seriesA_df, mu0, var0, var_t,
-                                               '','team1', 'team2', lambda row: np.sign(row["score1"] - row["score2"]),
-                                               predict_draws, update, False, consider_draw=True)
+                                               '','team1', 'team2',
+                                               lambda row: np.sign(row["score1"] - row["score2"]),
+                                               False, True,
+                                               update, predict_draws)
 
     skills[:,1] = np.sqrt(skills[:,1])
 
@@ -298,23 +280,23 @@ def trackTennisPlayers():
     var_t = (25/6)**2
 
     # Choose update method
-    update = createGibbsUpdater(var_t, nSamples=100, nBurn=5)
     update = createMomentMatching(var_t)
-    update = createTrueSkillUpdater()
+    #update = createTrueSkillUpdater()
 
     # Predicts y
     def predict(mu1, var1, mu2, var2, var_t):
         return round(Py_s1s2(mu1, var1, mu2, var2, var_t))*2-1 
 
-    # Multiply skill variance by e after 5 years of inactivity 
-    decayRate = 1/(365*20)
+    # Multiply skill variance by e after 50 years of inactivity 
+    # That's already enough to make a difference
+    decayRate = 1/(365*50)
     def decay(var,dt):
         return var0 + (var-var0)*np.exp(-dt*decayRate)
 
     players, skills, predictions_tennis, history = ADFdf(tennis_df, mu0, var0, var_t,
                                                'day','winner_name','loser_name',
-                                               lambda row : 1,
-                                               predict, update, False, False,decay
+                                               lambda row : 1, False, False,
+                                               update, predict #, decay
                                                )
 
     skills[:,1] = np.sqrt(skills[:,1])
@@ -348,11 +330,9 @@ def trackTennisPlayers():
         plt.legend()
         plt.xlabel("Time")
         plt.ylabel("Skill mean")
-        plt.xticks([2000,2006,2010,2016])
+        plt.xticks(list(range(1999,2018)),
+           [x if x in [2000,2006,2010,2016] else "" for x in range(1999,2018)])
                 
 
 trackTennisPlayers()
 
-
- 
-# %%
